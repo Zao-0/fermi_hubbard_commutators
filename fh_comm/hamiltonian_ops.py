@@ -1,3 +1,4 @@
+
 import abc
 import math
 from functools import total_ordering
@@ -178,7 +179,7 @@ class HoppingOp(HamiltonianOp):
         assert isinstance(other, HamiltonianOp)
         if isinstance(other, (AntisymmHoppingOp, NumberOp, ProductOp, SumOp)):
             return True
-        if isinstance(other, ZeroOp):
+        if isinstance(other, (ZeroOp, IdentityOp)):
             return False
         assert isinstance(other, HoppingOp)
         # lexicographical comparison
@@ -326,7 +327,7 @@ class AntisymmHoppingOp(HamiltonianOp):
         assert isinstance(other, HamiltonianOp)
         if isinstance(other, (NumberOp, ProductOp, SumOp)):
             return True
-        if isinstance(other, (ZeroOp, HoppingOp)):
+        if isinstance(other, (ZeroOp, IdentityOp, HoppingOp)):
             return False
         assert isinstance(other, AntisymmHoppingOp)
         # lexicographical comparison
@@ -471,7 +472,7 @@ class NumberOp(HamiltonianOp):
         assert isinstance(other, HamiltonianOp)
         if isinstance(other, (ProductOp, SumOp)):
             return True
-        if isinstance(other, (ZeroOp, HoppingOp, AntisymmHoppingOp)):
+        if isinstance(other, (ZeroOp, IdentityOp, HoppingOp, AntisymmHoppingOp)):
             return False
         assert isinstance(other, NumberOp)
         # lexicographical comparison
@@ -641,6 +642,96 @@ class ZeroOp(HamiltonianOp):
         return 0
 
 
+class IdentityOp(HamiltonianOp):
+    """
+    Identity Operator. i.e. c*I, c is coefficiency
+    """
+    def __init__(self, coeff: float) -> None:
+        super().__init__()
+        self.coeff = coeff
+    
+    def __neg__(self):
+        """
+        Logical negation.
+        """
+        return IdentityOp(-self.coeff)
+
+    def __rmul__(self, other):
+        """
+        Logical scalar product.
+        """
+        if not isinstance(other, (Rational, float)):
+            raise ValueError("expecting a scalar argument")
+        return IdentityOp(other*self.coeff)
+    
+    def __add__(self, other):
+        """
+        Logical sum.
+        """
+        if isinstance(other, ZeroOp):
+            return self
+        if not self.proportional(other):
+            raise ValueError("can only add another product operator with same factors")
+        return IdentityOp(self.coeff+other.coeff)
+    
+    def __sub__(self, other):
+        """
+        Logical difference.
+        """
+        return self+ (-other)
+    
+    def __str__(self) -> str:
+        c = "" if self.coeff ==1 else f"{self.coeff}"
+        return c+"I"
+    
+    def __eq__(self, other) -> bool:
+        """
+        Equality test.
+        """
+        return isinstance(other, IdentityOp) and self.coeff==other.coeff
+    
+    def __lt__(self, other) -> bool:
+        """
+        "Less than" comparison, used for, e.g., sorting a sum of operators.
+        """
+        assert isinstance(other, HamiltonianOp)
+        if isinstance(other,ZeroOp):
+            return True
+        if isinstance(other, (HoppingOp, AntisymmHoppingOp, NumberOp, ProductOp, SumOp)):
+            return False
+        assert isinstance(other, IdentityOp)
+        return self.coeff<other.coeff
+    
+    def proportional(self, other) -> bool:
+        """
+        Whether current operator is equal to 'other' up to a scalar factor.
+        """
+        return isinstance(other, IdentityOp)
+    
+    def as_field_operator(self) -> FieldOp:
+        """
+        TODO: Transfer the Identity Operator into field Op form
+        """
+        return super().as_field_operator()
+    
+    def support(self) -> list[tuple]:
+        """
+        TODO: To understand the meaning of this function
+        """
+        return super().support()
+
+    def translate(self, shift: Sequence[int]):
+        """
+        TODO: To understand the meaning of this function
+        """
+        return super().translate(shift)
+    
+    def normalize(self) -> tuple:
+        return IdentityOp(1), self.coeff
+    
+    def is_zero(self) -> bool:
+        return self.coeff==0
+
 class ProductOp(HamiltonianOp):
     """
     Product of Hamiltonian operators.
@@ -723,7 +814,7 @@ class ProductOp(HamiltonianOp):
         assert isinstance(other, HamiltonianOp)
         if isinstance(other, SumOp):
             return True
-        if isinstance(other, (ZeroOp, HoppingOp, AntisymmHoppingOp, NumberOp)):
+        if isinstance(other, (ZeroOp, IdentityOp, HoppingOp, AntisymmHoppingOp, NumberOp)):
             return False
         assert isinstance(other, ProductOp)
         if self.fermi_weight < other.fermi_weight:
