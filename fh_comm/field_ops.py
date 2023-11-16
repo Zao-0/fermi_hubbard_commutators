@@ -15,6 +15,7 @@ class FieldOpType(enum.Enum):
     FERMI_CREATE  = 0   # fermionic creation operator
     FERMI_ANNIHIL = 1   # fermionic annihilation operator
     FERMI_NUMBER  = 2   # fermionic number operator
+    FERMI_MODNUM = 3    # fermionic number operator (modified) i.e. n_i-1/2
 
 
 class ElementaryFieldOp:
@@ -37,6 +38,8 @@ class ElementaryFieldOp:
             return f"a_{{{self.i}, {'up' if self.s == 0 else 'dn'}}}"
         if self.otype == FieldOpType.FERMI_NUMBER:
             return f"n_{{{self.i}, {'up' if self.s == 0 else 'dn'}}}"
+        if self.otype == FieldOpType.FERMI_MODNUM:
+            return f"mn_{{{self.i}, {'up' if self.s == 0 else 'dn'}}}"
         assert False
 
 
@@ -102,7 +105,7 @@ class FieldOp:
         if not self.terms:
             # fast-return zero matrix if terms are empty
             return sparse.csr_matrix((2**L, 2**L))
-        clist, alist, nlist = construct_fermionic_operators(L)
+        clist, alist, nlist, mlist = construct_fermionic_operators(L)
         mat = 0
         if translatt is None:
             tps = [len(latt_shape) * (0,)]
@@ -120,6 +123,8 @@ class FieldOp:
                         fstring = fstring @ alist[j]
                     elif op.otype == FieldOpType.FERMI_NUMBER:
                         fstring = fstring @ nlist[j]
+                    elif op.otype == FieldOpType.FERMI_MODNUM:
+                        fstring = fstring @ mlist[j]
                     else:
                         raise RuntimeError(f"unexpected fermionic operator type {op.otype}")
                 mat += float(term.coeff) * fstring
@@ -146,7 +151,7 @@ class FieldOp:
         # active sites (including spin)
         supp = self.support()
         L = len(supp)
-        clist, alist, nlist = construct_fermionic_operators(L)
+        clist, alist, nlist, mlist = construct_fermionic_operators(L)
         # construct matrix representation
         mat = 0
         for term in self.terms:
@@ -160,11 +165,14 @@ class FieldOp:
                     fstring = fstring @ alist[j]
                 elif op.otype == FieldOpType.FERMI_NUMBER:
                     fstring = fstring @ nlist[j]
+                elif op.otype == FieldOpType.FERMI_MODNUM:
+                    fstring = fstring @ mlist[j]
                 else:
                     raise RuntimeError(f"unexpected fermionic operator type {op.otype}")
             mat += float(term.coeff) * fstring
         return mat
 
+    # TODO: th check whether this function need to be modified
     def quadratic_coefficients(self):
         r"""
         Find the coefficients in the representation
@@ -266,8 +274,10 @@ def construct_fermionic_operators(nmodes: int):
     alist = [sparse.csr_matrix(c.conj().T) for c in clist]
     # corresponding number operators
     nlist = []
+    mlist = []
     for i in range(nmodes):
         f = 1 << (nmodes - i - 1)
         data = [1. if (n & f == f) else 0. for n in range(2**nmodes)]
         nlist.append(sparse.dia_matrix((data, 0), 2*(2**nmodes,)))
-    return clist, alist, nlist
+        mlist.append(sparse.dia_matrix((data-0.5*np.ones(len(data)), 0), 2*(2**nmodes,)))
+    return clist, alist, nlist, mlist
