@@ -177,7 +177,7 @@ class HoppingOp(HamiltonianOp):
         "Less than" comparison, used for, e.g., sorting a sum of operators.
         """
         assert isinstance(other, HamiltonianOp)
-        if isinstance(other, (AntisymmHoppingOp, NumberOp, ModifiedNumberOp, ProductOp, SumOp)):
+        if isinstance(other, (AntisymmHoppingOp, NumberOp, ModifiedNumOp, ProductOp, SumOp)):
             return True
         if isinstance(other, (ZeroOp, IdentityOp)):
             return False
@@ -325,7 +325,7 @@ class AntisymmHoppingOp(HamiltonianOp):
         "Less than" comparison, used for, e.g., sorting a sum of operators.
         """
         assert isinstance(other, HamiltonianOp)
-        if isinstance(other, (NumberOp, ModifiedNumberOp, ProductOp, SumOp)):
+        if isinstance(other, (NumberOp, ModifiedNumOp, ProductOp, SumOp)):
             return True
         if isinstance(other, (ZeroOp, IdentityOp, HoppingOp)):
             return False
@@ -470,7 +470,7 @@ class NumberOp(HamiltonianOp):
         "Less than" comparison, used for, e.g., sorting a sum of operators.
         """
         assert isinstance(other, HamiltonianOp)
-        if isinstance(other, (ModifiedNumberOp,ProductOp, SumOp)):
+        if isinstance(other, (ModifiedNumOp,ProductOp, SumOp)):
             return True
         if isinstance(other, (ZeroOp, IdentityOp, HoppingOp, AntisymmHoppingOp)):
             return False
@@ -534,11 +534,11 @@ class NumberOp(HamiltonianOp):
         """
         return abs(self.coeff)
 
-class ModifiedNumberOp(HamiltonianOp):
+class ModifiedNumOp(HamiltonianOp):
     """
     Number operator :math:`n_{i\sigma}-Identity/2`.
     """
-    def __init__(self, i: Sequence[int], s: int, coeff: float):
+    def __init__(self,i:Sequence[int], s:int, coeff:float) -> None:
         self.i = tuple(i)
         assert s in [0, 1]
         self.s = s
@@ -548,7 +548,7 @@ class ModifiedNumberOp(HamiltonianOp):
         """
         Logical negation.
         """
-        return ModifiedNumberOp(self.i, self.s, -self.coeff)
+        return ModifiedNumOp(self.i, self.s, -self.coeff)
     
     def __rmul__(self, other):
         """
@@ -556,8 +556,8 @@ class ModifiedNumberOp(HamiltonianOp):
         """
         if not isinstance(other, (Rational, float)):
             raise ValueError("expecting a scalar argument")
-        return ModifiedNumberOp(self.i, self.s, other * self.coeff)
-    
+        return ModifiedNumOp(self.i, self.s, other * self.coeff)
+
     def __add__(self, other):
         """
         Logical sum.
@@ -566,30 +566,30 @@ class ModifiedNumberOp(HamiltonianOp):
             return self
         if not self.proportional(other):
             raise ValueError("can only add another number operator acting on same site")
-        return ModifiedNumberOp(self.i, self.s, self.coeff + other.coeff)
-    
+        return ModifiedNumOp(self.i, self.s, self.coeff + other.coeff)
+
     def __sub__(self, other):
         """
         Logical difference.
         """
         return self + (-other)
-    
+
     def __str__(self) -> str:
         """
         Represent the operator as a string.
         """
         c = "" if self.coeff == 1 else f"({self.coeff}) "
-        return c + f"Modn_{{{self.i}, {'up' if self.s == 0 else 'dn'}}}"
-    
+        return c + f"Mn_{{{self.i}, {'up' if self.s == 0 else 'dn'}}}"
+
     def __eq__(self, other) -> bool:
         """
         Equality test.
         """
-        if isinstance(other, ModifiedNumberOp):
+        if isinstance(other, ModifiedNumOp):
             if self.i == other.i and self.s == other.s and self.coeff == other.coeff:
                 return True
         return False
-    
+
     def __lt__(self, other) -> bool:
         """
         "Less than" comparison, used for, e.g., sorting a sum of operators.
@@ -597,59 +597,67 @@ class ModifiedNumberOp(HamiltonianOp):
         assert isinstance(other, HamiltonianOp)
         if isinstance(other, (ProductOp, SumOp)):
             return True
-        if isinstance(other, (ZeroOp, IdentityOp, HoppingOp, AntisymmHoppingOp)):
+        if isinstance(other, (ZeroOp, IdentityOp, HoppingOp, AntisymmHoppingOp, NumberOp)):
             return False
-        assert isinstance(other, ModifiedNumberOp)
+        assert isinstance(other, NumberOp)
         # lexicographical comparison
         return (self.s, self.i, self.coeff) < (other.s, other.i, other.coeff)
-    
+
     def proportional(self, other) -> bool:
         """
         Whether current operator is equal to 'other' up to a scalar factor.
         """
-        if isinstance(other, ModifiedNumberOp):
+        if isinstance(other, NumberOp):
             if self.i == other.i and self.s == other.s:
                 return True
         return False
-    
+
     def as_field_operator(self) -> FieldOp:
         """
-        We define a new fermionic field operator for it.
+        TODO: the function need to be modified
         """
-        return FieldOp([
-            ProductFieldOp([
-                ElementaryFieldOp(FieldOpType.FERMI_MODNUM, self.i, self.s)], self.coeff)])
-        
+        return FieldOp([])
+
     def support(self) -> list[tuple]:
         """
-        Support of the operator: lattice sites which it acts on (including spin).
+        TODO: Need to undertand the function
         """
         return [self.i + (self.s,)]
-    
+
     def translate(self, shift: Sequence[int]):
         """
         Translate by `shift` and return the translated operator.
         """
-        return ModifiedNumberOp(tuple(x + s for x, s in zip(self.i, shift)), self.s, self.coeff)
-    
+        return ModifiedNumOp(tuple(x + s for x, s in zip(self.i, shift)), self.s, self.coeff)
+
     def normalize(self) -> tuple:
         """
         Return a normalized copy of the operator together with its scalar prefactor.
         """
         if self.coeff == 1:
             return self, 1
-        return ModifiedNumberOp(self.i, self.s, 1), self.coeff
-    
+        return ModifiedNumOp(self.i, self.s, 1), self.coeff
+
     def is_zero(self) -> bool:
         """
         Indicate whether the operator acts as zero operator.
         """
         return self.coeff == 0
-    
-    def convert2Num(self):
+
+    @property
+    def fermi_weight(self) -> int:
         """
-        When compute the commutator of this Op and other Op, it's equivilant to the computation of numberOp
+        Maximum number of fermionic creation and annihilation operators multiplied together.
         """
+        return 2
+
+    def norm_bound(self) -> float:
+        """
+        Upper bound on the spectral norm of the operator.
+        """
+        return abs(self.coeff)
+
+    def Mod2Num(self) -> NumberOp:
         return NumberOp(self.i, self.s, self.coeff)
 
 
@@ -815,7 +823,7 @@ class IdentityOp(HamiltonianOp):
         assert isinstance(other, HamiltonianOp)
         if isinstance(other,ZeroOp):
             return True
-        if not isinstance(other, IdentityOp):
+        if isinstance(other, (HoppingOp, AntisymmHoppingOp, NumberOp, ModifiedNumOp, ProductOp, SumOp)):
             return False
         assert isinstance(other, IdentityOp)
         return self.coeff<other.coeff
@@ -828,15 +836,15 @@ class IdentityOp(HamiltonianOp):
     
     def as_field_operator(self) -> FieldOp:
         """
-        Represent the operator in terms of fermionic field operators.
+        TODO: Transfer the Identity Operator into field Op form
         """
-        return FieldOp([])
+        return super().as_field_operator()
     
     def support(self) -> list[tuple]:
         """
         TODO: To understand the meaning of this function
         """
-        return []
+        return super().support()
 
     def translate(self, shift: Sequence[int]):
         """
@@ -866,6 +874,15 @@ class ProductOp(HamiltonianOp):
             if isinstance(op, ProductOp):
                 self.ops += op.ops
                 self.coeff *= op.coeff
+            elif isinstance(op, IdentityOp):
+                self.coeff *= op.coeff
+            elif isinstance(op, ModifiedNumOp):
+                temp_num = op.Mod2Num()
+                temp_num, temp_coeff = temp_num.normalize()
+                self.coeff*=temp_coeff
+                oplist1 = self.ops
+                oplist2 = oplist1+[temp_num]
+                self.ops = [SumOp([ProductOp(oplist1, coeff=0.5), ProductOp(oplist2,coeff=1)])]
             else:
                 opn, c = op.normalize()
                 self.ops.append(opn)
@@ -932,7 +949,7 @@ class ProductOp(HamiltonianOp):
         assert isinstance(other, HamiltonianOp)
         if isinstance(other, SumOp):
             return True
-        if not isinstance(other, ProductOp):
+        if not isinstance(other, (ProductOp, SumOp)):
             return False
         assert isinstance(other, ProductOp)
         if self.fermi_weight < other.fermi_weight:
