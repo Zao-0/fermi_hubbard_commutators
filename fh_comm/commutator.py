@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from fh_comm.lattice import SubLattice
-from fh_comm.hamiltonian_ops import HamiltonianOp, HoppingOp, AntisymmHoppingOp, NumberOp, ZeroOp, ProductOp, SumOp
+from fh_comm.hamiltonian_ops import HamiltonianOp, HoppingOp, AntisymmHoppingOp, NumberOp, ModifiedNumOp, ZeroOp, IdentityOp, ProductOp, SumOp
 
 
 def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
@@ -8,7 +8,7 @@ def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
     Commutator between two fermionic Hamiltonian operator terms.
     """
     # manual pattern matching
-    if isinstance(a, ZeroOp) or isinstance(b, ZeroOp):
+    if isinstance(a, [ZeroOp, IdentityOp]) or isinstance(b, [ZeroOp, IdentityOp]):
         return ZeroOp()
     if isinstance(a, ProductOp):
         # commute `b` through the operators in `a`
@@ -27,6 +27,8 @@ def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
             return _commutator_mixed_symm_hopping(a, b)
         if isinstance(b, NumberOp):
             return _commutator_hopping_number(a, b)
+        if isinstance(b, ModifiedNumOp):
+            return _commutator_hopping_number(a, b.Mod2Num())
     elif isinstance(a, AntisymmHoppingOp):
         if isinstance(b, HoppingOp):
             # pylint: disable=arguments-out-of-order
@@ -35,6 +37,8 @@ def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
             return _commutator_antisymm_hopping(a, b)
         if isinstance(b, NumberOp):
             return _commutator_antisymm_hopping_number(a, b)
+        if isinstance(b, ModifiedNumOp):
+            return _commutator_antisymm_hopping_number(a, b.Mod2Num())
     elif isinstance(a, NumberOp):
         if isinstance(b, HoppingOp):
             # pylint: disable=arguments-out-of-order
@@ -42,7 +46,16 @@ def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
         if isinstance(b, AntisymmHoppingOp):
             # pylint: disable=arguments-out-of-order
             return -_commutator_antisymm_hopping_number(b, a)
-        if isinstance(b, NumberOp):
+        if isinstance(b, [NumberOp, ModifiedNumOp]):
+            return ZeroOp()
+    elif isinstance(a, ModifiedNumOp):
+        if isinstance(b, HoppingOp):
+            # pylint: disable=arguments-out-of-order
+            return -_commutator_hopping_number(b, a.Mod2Num())
+        if isinstance(b, AntisymmHoppingOp):
+            # pylint: disable=arguments-out-of-order
+            return -_commutator_antisymm_hopping_number(b, a.Mod2Num())
+        if isinstance(b, [NumberOp, ModifiedNumOp]):
             return ZeroOp()
     # should never reach this point
     raise NotImplementedError()
