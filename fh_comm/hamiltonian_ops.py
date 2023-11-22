@@ -599,7 +599,7 @@ class ModifiedNumOp(HamiltonianOp):
             return True
         if isinstance(other, (ZeroOp, IdentityOp, HoppingOp, AntisymmHoppingOp, NumberOp)):
             return False
-        assert isinstance(other, NumberOp)
+        assert isinstance(other, ModifiedNumOp)
         # lexicographical comparison
         return (self.s, self.i, self.coeff) < (other.s, other.i, other.coeff)
 
@@ -616,7 +616,10 @@ class ModifiedNumOp(HamiltonianOp):
         """
         TODO: the function need to be modified
         """
-        return FieldOp([])
+        return FieldOp([
+            ProductFieldOp([
+                ElementaryFieldOp(FieldOpType.FERMI_MODNUM, self.i, self.s)], self.coeff)
+        ])
 
     def support(self) -> list[tuple]:
         """
@@ -876,13 +879,6 @@ class ProductOp(HamiltonianOp):
                 self.coeff *= op.coeff
             elif isinstance(op, IdentityOp):
                 self.coeff *= op.coeff
-            elif isinstance(op, ModifiedNumOp):
-                temp_num = op.Mod2Num()
-                temp_num, temp_coeff = temp_num.normalize()
-                self.coeff*=temp_coeff
-                oplist1 = self.ops
-                oplist2 = oplist1+[temp_num]
-                self.ops = [SumOp([ProductOp(oplist1, coeff=0.5), ProductOp(oplist2,coeff=1)])]
             else:
                 opn, c = op.normalize()
                 self.ops.append(opn)
