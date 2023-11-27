@@ -658,7 +658,7 @@ class ModifiedNumOp(HamiltonianOp):
         """
         Upper bound on the spectral norm of the operator.
         """
-        return abs(self.coeff)
+        return abs(self.coeff*0.5)
 
     def Mod2Num(self) -> NumberOp:
         return NumberOp(self.i, self.s, self.coeff)
