@@ -8,7 +8,7 @@ def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
     Commutator between two fermionic Hamiltonian operator terms.
     """
     # manual pattern matching
-    if isinstance(a, [ZeroOp, IdentityOp]) or isinstance(b, [ZeroOp, IdentityOp]):
+    if isinstance(a, (ZeroOp, IdentityOp)) or isinstance(b, (ZeroOp, IdentityOp)):
         return ZeroOp()
     if isinstance(a, ProductOp):
         # commute `b` through the operators in `a`
