@@ -46,7 +46,7 @@ def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
         if isinstance(b, AntisymmHoppingOp):
             # pylint: disable=arguments-out-of-order
             return -_commutator_antisymm_hopping_number(b, a)
-        if isinstance(b, [NumberOp, ModifiedNumOp]):
+        if isinstance(b, (NumberOp, ModifiedNumOp)):
             return ZeroOp()
     elif isinstance(a, ModifiedNumOp):
         if isinstance(b, HoppingOp):
@@ -55,7 +55,7 @@ def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
         if isinstance(b, AntisymmHoppingOp):
             # pylint: disable=arguments-out-of-order
             return -_commutator_antisymm_hopping_number(b, a.Mod2Num())
-        if isinstance(b, [NumberOp, ModifiedNumOp]):
+        if isinstance(b, (NumberOp, ModifiedNumOp)):
             return ZeroOp()
     # should never reach this point
     raise NotImplementedError()
