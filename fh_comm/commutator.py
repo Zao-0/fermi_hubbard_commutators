@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from fh_comm.lattice import SubLattice
-from fh_comm.hamiltonian_ops import HamiltonianOp, HoppingOp, AntisymmHoppingOp, NumberOp, ModifiedNumOp, ZeroOp, IdentityOp, ProductOp, SumOp
+from fh_comm.hamiltonian_ops import HamiltonianOp, HoppingOp, AntisymmHoppingOp, NumberOp, ModifiedNumOp, ZeroOp, PauliOp, ProductOp, SumOp
 
 
 def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
@@ -8,7 +8,7 @@ def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
     Commutator between two fermionic Hamiltonian operator terms.
     """
     # manual pattern matching
-    if isinstance(a, (ZeroOp, IdentityOp)) or isinstance(b, (ZeroOp, IdentityOp)):
+    if isinstance(a, (ZeroOp, PauliOp)) or isinstance(b, (ZeroOp, PauliOp)):
         return ZeroOp()
     if isinstance(a, ProductOp):
         # commute `b` through the operators in `a`
