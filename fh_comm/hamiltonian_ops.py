@@ -179,7 +179,7 @@ class HoppingOp(HamiltonianOp):
         assert isinstance(other, HamiltonianOp)
         if isinstance(other, (AntisymmHoppingOp, NumberOp, ModifiedNumOp, ProductOp, SumOp)):
             return True
-        if isinstance(other, (ZeroOp, IdentityOp)):
+        if isinstance(other, (ZeroOp, PauliOp)):
             return False
         assert isinstance(other, HoppingOp)
         # lexicographical comparison
@@ -327,7 +327,7 @@ class AntisymmHoppingOp(HamiltonianOp):
         assert isinstance(other, HamiltonianOp)
         if isinstance(other, (NumberOp, ModifiedNumOp, ProductOp, SumOp)):
             return True
-        if isinstance(other, (ZeroOp, IdentityOp, HoppingOp)):
+        if isinstance(other, (ZeroOp, PauliOp, HoppingOp)):
             return False
         assert isinstance(other, AntisymmHoppingOp)
         # lexicographical comparison
@@ -412,10 +412,13 @@ class AntisymmHoppingOp(HamiltonianOp):
 class NumberOp(HamiltonianOp):
     """
     Number operator :math:`n_{i\sigma}`.
+    s = 0 ----- spin up
+    s = 1 ----- spin down
+    s = 2 ----- boson
     """
     def __init__(self, i: Sequence[int], s: int, coeff: float):
         self.i = tuple(i)
-        assert s in [0, 1]
+        assert s in [0, 1, 2]
         self.s = s
         self.coeff = coeff
 
@@ -454,7 +457,12 @@ class NumberOp(HamiltonianOp):
         Represent the operator as a string.
         """
         c = "" if self.coeff == 1 else f"({self.coeff}) "
-        return c + f"n_{{{self.i}, {'up' if self.s == 0 else 'dn'}}}"
+        nt = 'up'
+        if self.s==1:
+            nt = 'dn'
+        elif self.s==2:
+            nt = 'bn'
+        return c + f"n_{{{self.i}, {nt}}}"
 
     def __eq__(self, other) -> bool:
         """
@@ -472,7 +480,7 @@ class NumberOp(HamiltonianOp):
         assert isinstance(other, HamiltonianOp)
         if isinstance(other, (ModifiedNumOp,ProductOp, SumOp)):
             return True
-        if isinstance(other, (ZeroOp, IdentityOp, HoppingOp, AntisymmHoppingOp)):
+        if isinstance(other, (ZeroOp, PauliOp, HoppingOp, AntisymmHoppingOp)):
             return False
         assert isinstance(other, NumberOp)
         # lexicographical comparison
@@ -597,7 +605,7 @@ class ModifiedNumOp(HamiltonianOp):
         assert isinstance(other, HamiltonianOp)
         if isinstance(other, (ProductOp, SumOp)):
             return True
-        if isinstance(other, (ZeroOp, IdentityOp, HoppingOp, AntisymmHoppingOp, NumberOp)):
+        if isinstance(other, (ZeroOp, PauliOp, HoppingOp, AntisymmHoppingOp, NumberOp)):
             return False
         assert isinstance(other, ModifiedNumOp)
         # lexicographical comparison
@@ -771,19 +779,24 @@ class ZeroOp(HamiltonianOp):
         return 0
 
 
-class IdentityOp(HamiltonianOp):
+class PauliOp(HamiltonianOp):
     """
     Identity Operator. i.e. c*I, c is coefficiency
     """
-    def __init__(self, coeff: float) -> None:
+    def __init__(self,cate: int, coeff: float) -> None:
         super().__init__()
+        """
+        Category: 0-Identity, 1-pauliX, 2-i*pauliY, 3-pauliZ
+        """
+        assert cate in [0,1,2,3]
+        self.cate = cate
         self.coeff = coeff
     
     def __neg__(self):
         """
         Logical negation.
         """
-        return IdentityOp(-self.coeff)
+        return PauliOp(-self.coeff)
 
     def __rmul__(self, other):
         """
@@ -791,7 +804,7 @@ class IdentityOp(HamiltonianOp):
         """
         if not isinstance(other, (Rational, float)):
             raise ValueError("expecting a scalar argument")
-        return IdentityOp(other*self.coeff)
+        return PauliOp(other*self.coeff)
     
     def __add__(self, other):
         """
@@ -801,7 +814,7 @@ class IdentityOp(HamiltonianOp):
             return self
         if not self.proportional(other):
             raise ValueError("can only add another product operator with same factors")
-        return IdentityOp(self.coeff+other.coeff)
+        return PauliOp(self.coeff+other.coeff)
     
     def __sub__(self, other):
         """
@@ -811,13 +824,22 @@ class IdentityOp(HamiltonianOp):
     
     def __str__(self) -> str:
         c = "" if self.coeff ==1 else f"{self.coeff}"
+        match self.cate:
+            case 1:
+                lb = "X"
+            case 2:
+                lb = 'iY'
+            case 3:
+                lb = "Z"
+            case _:
+                lb = "I"
         return c+"I"
     
     def __eq__(self, other) -> bool:
         """
         Equality test.
         """
-        return isinstance(other, IdentityOp) and self.coeff==other.coeff
+        return isinstance(other, PauliOp) and self.coeff==other.coeff
     
     def __lt__(self, other) -> bool:
         """
@@ -828,14 +850,14 @@ class IdentityOp(HamiltonianOp):
             return True
         if isinstance(other, (HoppingOp, AntisymmHoppingOp, NumberOp, ModifiedNumOp, ProductOp, SumOp)):
             return False
-        assert isinstance(other, IdentityOp)
+        assert isinstance(other, PauliOp)
         return self.coeff<other.coeff
     
     def proportional(self, other) -> bool:
         """
         Whether current operator is equal to 'other' up to a scalar factor.
         """
-        return isinstance(other, IdentityOp)
+        return isinstance(other, PauliOp)
     
     def as_field_operator(self) -> FieldOp:
         """
@@ -856,7 +878,7 @@ class IdentityOp(HamiltonianOp):
         return super().translate(shift)
     
     def normalize(self) -> tuple:
-        return IdentityOp(1), self.coeff
+        return PauliOp(self.cate,1), self.coeff
     
     def is_zero(self) -> bool:
         return self.coeff==0
@@ -877,7 +899,7 @@ class ProductOp(HamiltonianOp):
             if isinstance(op, ProductOp):
                 self.ops += op.ops
                 self.coeff *= op.coeff
-            elif isinstance(op, IdentityOp):
+            elif isinstance(op, PauliOp):
                 self.coeff *= op.coeff
             else:
                 opn, c = op.normalize()
