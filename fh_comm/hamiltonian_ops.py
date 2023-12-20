@@ -783,12 +783,13 @@ class PauliOp(HamiltonianOp):
     """
     Identity Operator. i.e. c*I, c is coefficiency
     """
-    def __init__(self,cate: int, coeff: float) -> None:
+    def __init__(self,i: Sequence[int],cate: int, coeff: float) -> None:
         super().__init__()
         """
         Category: 0-Identity, 1-pauliX, 2-i*pauliY, 3-pauliZ
         """
         assert cate in [0,1,2,3]
+        self.i = i
         self.cate = cate
         self.coeff = coeff
     
@@ -833,7 +834,7 @@ class PauliOp(HamiltonianOp):
                 lb = "Z"
             case _:
                 lb = "I"
-        return c+"I"
+        return c+f"{lb}"
     
     def __eq__(self, other) -> bool:
         """
@@ -863,22 +864,35 @@ class PauliOp(HamiltonianOp):
         """
         TODO: Transfer the Identity Operator into field Op form
         """
-        return super().as_field_operator()
+        match self.cate:
+            case 1: # pauli X
+                op_list = [ProductFieldOp([ElementaryFieldOp(FieldOpType.BOSON_CREATE, self.i, 2)], self.coeff), 
+                ProductFieldOp([ElementaryFieldOp(FieldOpType.BOSON_ANNIHIL, self.i, 2)], self.coeff)]
+            case 2: # i*pauli Y
+                op_list = [ProductFieldOp([ElementaryFieldOp(FieldOpType.BOSON_CREATE, self.i, 2)], -self.coeff), 
+                ProductFieldOp([ElementaryFieldOp(FieldOpType.BOSON_ANNIHIL, self.i, 2)], self.coeff)]
+            case 3: # pauli Z
+                op_list = [ProductFieldOp([ElementaryFieldOp(FieldOpType.FERMI_MODNUM, self.i, 2)], -2.*self.coeff)]
+            case _: # Identity
+                raise RuntimeError("Identity operator should be emitted")
+        return FieldOp(op_list)
     
     def support(self) -> list[tuple]:
         """
         TODO: To understand the meaning of this function
+        It should be just return the position and the spin acting by the operator
         """
-        return super().support()
+        return [self.i + (2,)]
 
     def translate(self, shift: Sequence[int]):
         """
         TODO: To understand the meaning of this function
+        move the position into correct representation of the lattice
         """
-        return super().translate(shift)
+        return PauliOp(tuple(x + s for x, s in zip(self.i, shift)), self.cate, self.coeff)
     
     def normalize(self) -> tuple:
-        return PauliOp(self.cate,1), self.coeff
+        return PauliOp(self.i, self.cate,1.), self.coeff
     
     def is_zero(self) -> bool:
         return self.coeff==0
