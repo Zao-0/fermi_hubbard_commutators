@@ -25,23 +25,29 @@ class ElementaryFieldOp:
     def __init__(self, otype: FieldOpType, i: Sequence[int], s: int):
         self.otype = otype
         self.i = tuple(i)
-        assert s in [0, 1]
+        assert s in [0, 1, 2]
         self.s = s
 
     def __str__(self) -> str:
         """
         Represent the operator as a string.
         """
+        nt = 'up'
+        if self.s==1:
+            nt = 'dn'
+        elif self.s==2:
+            nt = 'bn'
         if self.otype == FieldOpType.FERMI_CREATE:
-            return f"ad_{{{self.i}, {'up' if self.s == 0 else 'dn'}}}"
+            return f"ad_{{{self.i}, {nt}}}"
         if self.otype == FieldOpType.FERMI_ANNIHIL:
-            return f"a_{{{self.i}, {'up' if self.s == 0 else 'dn'}}}"
+            return f"a_{{{self.i}, {nt}}}"
         if self.otype == FieldOpType.FERMI_NUMBER:
-            return f"n_{{{self.i}, {'up' if self.s == 0 else 'dn'}}}"
+            return f"n_{{{self.i}, {nt}}}"
         if self.otype == FieldOpType.FERMI_MODNUM:
-            return f"mn_{{{self.i}, {'up' if self.s == 0 else 'dn'}}}"
+            return f"mn_{{{self.i}, {nt}}}"
         assert False
 
+##TODO: Create an other type ElementaryFieldOp?
 
 class ProductFieldOp:
     """
@@ -256,6 +262,8 @@ def construct_fermionic_operators(nmodes: int):
     """
     I = sparse.identity(2)
     Z = sparse.csr_matrix([[ 1.,  0.], [ 0., -1.]])
+    iY = sparse.csr_matrix([[0.,  1.], [ -1., 0.]])
+    X = sparse.csr_matrix([[ 0.,  1.], [ 1.,  0.]])
     U = sparse.csr_matrix([[ 0.,  0.], [ 1.,  0.]])
     clist = []
     for i in range(nmodes):
