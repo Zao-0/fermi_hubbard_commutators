@@ -14,8 +14,10 @@ class FieldOpType(enum.Enum):
     """
     FERMI_CREATE  = 0   # fermionic creation operator
     FERMI_ANNIHIL = 1   # fermionic annihilation operator
-    FERMI_NUMBER  = 2   # fermionic number operator
-    FERMI_MODNUM = 3    # fermionic number operator (modified) i.e. n_i-1/2
+    FERMI_NUMBER  = 2   # fermionic/bosonic number operator
+    FERMI_MODNUM = 3    # fermionic/bosonic number operator (modified) i.e. n_i-1/2
+    BOSON_CREATE = 4    # bosonic creation operator
+    BOSON_ANNIHIL = 5   # bosonic annihilation operator
 
 
 class ElementaryFieldOp:
@@ -45,6 +47,10 @@ class ElementaryFieldOp:
             return f"n_{{{self.i}, {nt}}}"
         if self.otype == FieldOpType.FERMI_MODNUM:
             return f"mn_{{{self.i}, {nt}}}"
+        if self.otype == FieldOpType.BOSON_CREATE:
+            return f"bc_{{{self.i}, {nt}}}"
+        if self.otype == FieldOpType.BOSON_ANNIHIL:
+            return f"ba_{{{self.i}, {nt}}}"
         assert False
 
 ##TODO: Create an other type ElementaryFieldOp?
@@ -254,7 +260,7 @@ class FieldOp:
 
 
 @cache
-def construct_fermionic_operators(nmodes: int):
+def  construct_fermionic_operators(nmodes: int):
     """
     Generate sparse matrix representations of the fermionic creation and
     annihilation operators for `nmodes` modes (or sites),
@@ -262,30 +268,34 @@ def construct_fermionic_operators(nmodes: int):
     """
     I = sparse.identity(2)
     Z = sparse.csr_matrix([[ 1.,  0.], [ 0., -1.]])
-    iY = sparse.csr_matrix([[0.,  1.], [ -1., 0.]])
-    X = sparse.csr_matrix([[ 0.,  1.], [ 1.,  0.]])
     U = sparse.csr_matrix([[ 0.,  0.], [ 1.,  0.]])
     clist = []
+    mlist = [] # indeed 1/2 * -Z
     for i in range(nmodes):
         c = sparse.identity(1)
+        m = sparse.identity(1)
         for j in range(nmodes):
             if j < i:
                 c = sparse.kron(c, I)
+                m = sparse.kron(m, I)
             elif j == i:
                 c = sparse.kron(c, U)
+                m = sparse.kron(m, Z)*(-.5)
             else:
                 c = sparse.kron(c, Z)
+                m = sparse.kron(m, I)
         c = sparse.csr_matrix(c)
+        m = sparse.csr_matrix(m)
         c.eliminate_zeros()
+        m.eliminate_zeros()
         clist.append(c)
+        mlist.append(m)
     # corresponding annihilation operators
     alist = [sparse.csr_matrix(c.conj().T) for c in clist]
     # corresponding number operators
     nlist = []
-    mlist = []
     for i in range(nmodes):
         f = 1 << (nmodes - i - 1)
         data = [1. if (n & f == f) else 0. for n in range(2**nmodes)]
         nlist.append(sparse.dia_matrix((data, 0), 2*(2**nmodes,)))
-        mlist.append(sparse.dia_matrix((data-0.5*np.ones(len(data)), 0), 2*(2**nmodes,)))
     return clist, alist, nlist, mlist
