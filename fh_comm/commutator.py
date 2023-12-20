@@ -8,7 +8,7 @@ def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
     Commutator between two fermionic Hamiltonian operator terms.
     """
     # manual pattern matching
-    if isinstance(a, (ZeroOp, PauliOp)) or isinstance(b, (ZeroOp, PauliOp)):
+    if isinstance(a, ZeroOp) or isinstance(b, ZeroOp):
         return ZeroOp()
     if isinstance(a, ProductOp):
         # commute `b` through the operators in `a`
@@ -29,6 +29,8 @@ def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
             return _commutator_hopping_number(a, b)
         if isinstance(b, ModifiedNumOp):
             return _commutator_hopping_number(a, b.Mod2Num())
+        if isinstance(b, PauliOp):
+            return ZeroOp()
     elif isinstance(a, AntisymmHoppingOp):
         if isinstance(b, HoppingOp):
             # pylint: disable=arguments-out-of-order
@@ -39,6 +41,8 @@ def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
             return _commutator_antisymm_hopping_number(a, b)
         if isinstance(b, ModifiedNumOp):
             return _commutator_antisymm_hopping_number(a, b.Mod2Num())
+        if isinstance(b, PauliOp):
+            return ZeroOp()
     elif isinstance(a, NumberOp):
         if isinstance(b, HoppingOp):
             # pylint: disable=arguments-out-of-order
@@ -48,6 +52,8 @@ def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
             return -_commutator_antisymm_hopping_number(b, a)
         if isinstance(b, (NumberOp, ModifiedNumOp)):
             return ZeroOp()
+        if isinstance(b, PauliOp):
+            return 
     elif isinstance(a, ModifiedNumOp):
         if isinstance(b, HoppingOp):
             # pylint: disable=arguments-out-of-order
@@ -166,6 +172,9 @@ def _commutator_antisymm_hopping_number(a: AntisymmHoppingOp, b: NumberOp) -> Ha
         return HoppingOp(a.i, a.j, a.s, a.coeff * b.coeff).standard_form()
     # operators act on disjoint sites
     return ZeroOp()
+
+def _commutator_number_pauli(a: NumberOp, b: PauliOp):
+    assert isinstance(a, NumberOp) and isinstance(b, PauliOp)
 
 
 def commutator_translation(a: HamiltonianOp, b: HamiltonianOp, translatt: SubLattice) -> HamiltonianOp:
