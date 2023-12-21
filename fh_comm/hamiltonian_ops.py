@@ -833,7 +833,7 @@ class PauliOp(HamiltonianOp):
             case 3:
                 lb = "Z"
             case _:
-                lb = "I"
+                lb = "Id"
         return c+f"{lb}"
     
     def __eq__(self, other) -> bool:
@@ -858,7 +858,9 @@ class PauliOp(HamiltonianOp):
         """
         Whether current operator is equal to 'other' up to a scalar factor.
         """
-        return isinstance(other, PauliOp)
+        if isinstance(other, PauliOp):
+            return self.cate == other.cate
+        return False
     
     def as_field_operator(self) -> FieldOp:
         """
