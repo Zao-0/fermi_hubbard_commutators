@@ -117,7 +117,7 @@ class FieldOp:
         if not self.terms:
             # fast-return zero matrix if terms are empty
             return sparse.csr_matrix((2**L, 2**L))
-        clist, alist, nlist, mlist = construct_fermionic_operators(L)
+        clist, alist, nlist, mlist, bclist, balist = construct_fermionic_operators(L)
         mat = 0
         if translatt is None:
             tps = [len(latt_shape) * (0,)]
@@ -137,6 +137,10 @@ class FieldOp:
                         fstring = fstring @ nlist[j]
                     elif op.otype == FieldOpType.FERMI_MODNUM:
                         fstring = fstring @ mlist[j]
+                    elif op.otype == FieldOpType.BOSON_CREATE:
+                        fstring = fstring @ bclist[j]
+                    elif op.otype == FieldOpType.BOSON_ANNIHIL:
+                        fstring == fstring @ balist[j]
                     else:
                         raise RuntimeError(f"unexpected fermionic operator type {op.otype}")
                 mat += float(term.coeff) * fstring
@@ -271,31 +275,40 @@ def  construct_fermionic_operators(nmodes: int):
     U = sparse.csr_matrix([[ 0.,  0.], [ 1.,  0.]])
     clist = []
     mlist = [] # indeed 1/2 * -Z
+    bclist = []
     for i in range(nmodes):
         c = sparse.identity(1)
         m = sparse.identity(1)
+        bc = sparse.identity(1)
         for j in range(nmodes):
             if j < i:
                 c = sparse.kron(c, I)
                 m = sparse.kron(m, I)
+                bc = sparse.kron(bc, I)
             elif j == i:
                 c = sparse.kron(c, U)
                 m = sparse.kron(m, Z)*(-.5)
+                bc = sparse.kron(bc, U)
             else:
                 c = sparse.kron(c, Z)
                 m = sparse.kron(m, I)
+                bc = sparse.kron(bc, I)
         c = sparse.csr_matrix(c)
         m = sparse.csr_matrix(m)
+        bc = sparse.csr_matrix(bc)
         c.eliminate_zeros()
         m.eliminate_zeros()
+        bc.eliminate_zeros()
         clist.append(c)
         mlist.append(m)
+        bclist.append(bc)
     # corresponding annihilation operators
     alist = [sparse.csr_matrix(c.conj().T) for c in clist]
+    balist = [sparse.csr_matrix(bc.conj().T) for bc in bclist]
     # corresponding number operators
     nlist = []
     for i in range(nmodes):
         f = 1 << (nmodes - i - 1)
         data = [1. if (n & f == f) else 0. for n in range(2**nmodes)]
         nlist.append(sparse.dia_matrix((data, 0), 2*(2**nmodes,)))
-    return clist, alist, nlist, mlist
+    return clist, alist, nlist, mlist, bclist, balist
