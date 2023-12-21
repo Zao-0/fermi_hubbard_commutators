@@ -53,7 +53,7 @@ def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
         if isinstance(b, (NumberOp, ModifiedNumOp)):
             return ZeroOp()
         if isinstance(b, PauliOp):
-            return 
+            return _commutator_number_pauli(a, b)
     elif isinstance(a, ModifiedNumOp):
         if isinstance(b, HoppingOp):
             # pylint: disable=arguments-out-of-order
@@ -63,6 +63,16 @@ def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
             return -_commutator_antisymm_hopping_number(b, a.Mod2Num())
         if isinstance(b, (NumberOp, ModifiedNumOp)):
             return ZeroOp()
+        if isinstance(b, PauliOp):
+            return _commutator_number_pauli(a.Mod2Num(), b)
+    elif isinstance(a, PauliOp):
+        if isinstance(b, PauliOp):
+            return _commutator_pauli(a,b)
+        if isinstance(b, NumberOp):
+            return -_commutator_number_pauli(b,a)
+        if isinstance(b, ModifiedNumOp):
+            return -_commutator_number_pauli(b.Mod2Num(),a)
+        return ZeroOp()
     # should never reach this point
     raise NotImplementedError()
 
@@ -175,6 +185,30 @@ def _commutator_antisymm_hopping_number(a: AntisymmHoppingOp, b: NumberOp) -> Ha
 
 def _commutator_number_pauli(a: NumberOp, b: PauliOp):
     assert isinstance(a, NumberOp) and isinstance(b, PauliOp)
+    if a.s!=2:  # consider the bosons only
+        return ZeroOp()
+    if a.i!=b.i:    # only on the same site
+        return ZeroOp()
+    match b.cate:
+        case 1:
+            return PauliOp(a.i, 2, -a.coeff*b.coeff)
+        case 2:
+            return PauliOp(a.i, 1, -a.coeff*b.coeff)
+    return ZeroOp()
+
+def _commutator_pauli(a: PauliOp, b: PauliOp):
+    assert isinstance(a, PauliOp) and isinstance(b, PauliOp)
+    if a.i != b.i:
+        return ZeroOp()
+    if a.cate == 1 and b.cate == 2:
+        return PauliOp(a.i, 3, -2*a.coeff*b.coeff)
+    if a.cate == 2 and b.cate == 1:
+        return PauliOp(a.i, 3, 2*a.coeff*b.coeff)
+    if a.cate == 3 and b.cate != 3:
+        return PauliOp(a.i, 1 if b.cate==2 else 2, -2*a.coeff*b.coeff)
+    if a.cate != 3 and b.cate == 3:
+        return PauliOp(a.i, 1 if a.cate==2 else 2, 2*a.coeff*b.coeff)
+    return ZeroOp()
 
 
 def commutator_translation(a: HamiltonianOp, b: HamiltonianOp, translatt: SubLattice) -> HamiltonianOp:
