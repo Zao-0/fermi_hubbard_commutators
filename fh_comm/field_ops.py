@@ -113,7 +113,7 @@ class FieldOp:
         Optionally using shifted copies on sublattice `translatt`.
         """
         # number of lattice sites; factor 2 from spin
-        L = 2 * math.prod(latt_shape)
+        L = 3 * math.prod(latt_shape)
         if not self.terms:
             # fast-return zero matrix if terms are empty
             return sparse.csr_matrix((2**L, 2**L))
@@ -167,7 +167,7 @@ class FieldOp:
         # active sites (including spin)
         supp = self.support()
         L = len(supp)
-        clist, alist, nlist, mlist = construct_fermionic_operators(L)
+        clist, alist, nlist, mlist, bclist, balist = construct_fermionic_operators(L)
         # construct matrix representation
         mat = 0
         for term in self.terms:
@@ -183,6 +183,10 @@ class FieldOp:
                     fstring = fstring @ nlist[j]
                 elif op.otype == FieldOpType.FERMI_MODNUM:
                     fstring = fstring @ mlist[j]
+                elif op.otype == FieldOpType.BOSON_CREATE:
+                    fstring = fstring @ bclist[j]
+                elif op.otype == FieldOpType.BOSON_ANNIHIL:
+                    fstring == fstring @ balist[j]
                 else:
                     raise RuntimeError(f"unexpected fermionic operator type {op.otype}")
             mat += float(term.coeff) * fstring
