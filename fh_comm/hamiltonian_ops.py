@@ -797,7 +797,7 @@ class PauliOp(HamiltonianOp):
         """
         Logical negation.
         """
-        return PauliOp(-self.coeff)
+        return PauliOp(self.i, self.cate,-self.coeff)
 
     def __rmul__(self, other):
         """
@@ -898,6 +898,13 @@ class PauliOp(HamiltonianOp):
     
     def is_zero(self) -> bool:
         return self.coeff==0
+    
+    @property
+    def fermi_weight(self) -> int:
+        return 2
+    
+    def norm_bound(self) -> float:
+        return 1.
 
 class ProductOp(HamiltonianOp):
     """
@@ -914,8 +921,6 @@ class ProductOp(HamiltonianOp):
             # flatten nested products
             if isinstance(op, ProductOp):
                 self.ops += op.ops
-                self.coeff *= op.coeff
-            elif isinstance(op, PauliOp):
                 self.coeff *= op.coeff
             else:
                 opn, c = op.normalize()
