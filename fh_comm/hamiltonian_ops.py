@@ -904,7 +904,7 @@ class PauliOp(HamiltonianOp):
         return 2
     
     def norm_bound(self) -> float:
-        return 1.
+        return abs(self.coeff)
 
 class ProductOp(HamiltonianOp):
     """
