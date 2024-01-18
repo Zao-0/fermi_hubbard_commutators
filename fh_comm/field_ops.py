@@ -248,10 +248,6 @@ class FieldOp:
                     fstring = fstring @ nlist[j]
                 elif op.otype == FieldOpType.FERMI_MODNUM:
                     fstring = fstring @ mlist[j]
-                elif op.otype == FieldOpType.BOSON_CREATE:
-                    fstring = fstring @ bclist[j]
-                elif op.otype == FieldOpType.BOSON_ANNIHIL:
-                    fstring == fstring @ balist[j]
                 else:
                     raise RuntimeError(f"unexpected fermionic operator type {op.otype}")
             mat += float(term.coeff) * fstring
