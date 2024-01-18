@@ -118,19 +118,20 @@ class HoppingOp(HamiltonianOp):
     Hopping term :math:`a^{\dagger}_{i\sigma} a_{j\sigma} + h.c.`
     between sites `i` and `j` with spin `s`.
     """
-    def __init__(self, i: Sequence[int], j: Sequence[int], s: int, coeff: float):
+    def __init__(self, i: Sequence[int], j: Sequence[int], s: int, coeff: float, mod:int = 0):
         self.i = tuple(i)
         self.j = tuple(j)
         assert self.i != self.j
         assert s in [0, 1]
         self.s = s
         self.coeff = coeff
+        self.mod = mod
 
     def __neg__(self):
         """
         Logical negation.
         """
-        return HoppingOp(self.i, self.j, self.s, -self.coeff)
+        return HoppingOp(self.i, self.j, self.s, -self.coeff, self.mod)
 
     def __rmul__(self, other):
         """
@@ -138,7 +139,7 @@ class HoppingOp(HamiltonianOp):
         """
         if not isinstance(other, (Rational, float)):
             raise ValueError("expecting a scalar argument")
-        return HoppingOp(self.i, self.j, self.s, other * self.coeff)
+        return HoppingOp(self.i, self.j, self.s, other * self.coeff, self.mod)
 
     def __add__(self, other):
         """
@@ -148,7 +149,7 @@ class HoppingOp(HamiltonianOp):
             return self
         if not self.proportional(other):
             raise ValueError("can only add another hopping term acting on same sites")
-        return HoppingOp(self.i, self.j, self.s, self.coeff + other.coeff)
+        return HoppingOp(self.i, self.j, self.s, self.coeff + other.coeff, self.mod)
 
     def __sub__(self, other):
         """
