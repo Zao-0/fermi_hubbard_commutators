@@ -17,7 +17,7 @@ class FieldOpType(enum.Enum):
     FERMI_NUMBER  = 2   # fermionic/bosonic number operator
     FERMI_MODNUM = 3    # fermionic/bosonic number operator (modified) i.e. n_i-1/2
 
-class FieldOpType_FB(FieldOpType):
+class FieldOpType_FB(enum.Enum):
     """
     Fermionic-Bosonic field operator type.
     """
