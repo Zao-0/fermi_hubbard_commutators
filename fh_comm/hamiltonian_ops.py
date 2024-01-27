@@ -6,7 +6,7 @@ from numbers import Rational
 from collections.abc import Sequence
 from warnings import warn
 import numpy as np
-from fh_comm.field_ops import FieldOpType, ElementaryFieldOp, ProductFieldOp, FieldOp
+from fh_comm.field_ops import FieldOpType, ElementaryFieldOp, ProductFieldOp, FieldOp, FieldOpType_FB, ElementaryFieldOp_FB, ProductFieldOp_FB, FieldOp_FB
 
 
 @total_ordering
@@ -108,6 +108,13 @@ class HamiltonianOp(abc.ABC):
         Upper bound on the spectral norm of the operator.
         """
 
+    @abc.abstractmethod
+    def set_mod(self, mod:int):
+        """
+        modify the mod of the mod of the operator: 
+        0 ---- Fermi-only model
+        1 ---- Fermi-Bosonic interaction model
+        """
     # maximum number of modes defining matrix dimension
     # for which the exact spectral norm can be computed
     max_nmodes_exact_norm = 14
@@ -118,19 +125,21 @@ class HoppingOp(HamiltonianOp):
     Hopping term :math:`a^{\dagger}_{i\sigma} a_{j\sigma} + h.c.`
     between sites `i` and `j` with spin `s`.
     """
-    def __init__(self, i: Sequence[int], j: Sequence[int], s: int, coeff: float):
+    def __init__(self, i: Sequence[int], j: Sequence[int], s: int, coeff: float, mod:int = 0):
         self.i = tuple(i)
         self.j = tuple(j)
         assert self.i != self.j
         assert s in [0, 1]
         self.s = s
         self.coeff = coeff
+        assert mod in [0,1]
+        self.mod = mod
 
     def __neg__(self):
         """
         Logical negation.
         """
-        return HoppingOp(self.i, self.j, self.s, -self.coeff)
+        return HoppingOp(self.i, self.j, self.s, -self.coeff, self.mod)
 
     def __rmul__(self, other):
         """
@@ -138,7 +147,7 @@ class HoppingOp(HamiltonianOp):
         """
         if not isinstance(other, (Rational, float)):
             raise ValueError("expecting a scalar argument")
-        return HoppingOp(self.i, self.j, self.s, other * self.coeff)
+        return HoppingOp(self.i, self.j, self.s, other * self.coeff, self.mod)
 
     def __add__(self, other):
         """
@@ -148,7 +157,7 @@ class HoppingOp(HamiltonianOp):
             return self
         if not self.proportional(other):
             raise ValueError("can only add another hopping term acting on same sites")
-        return HoppingOp(self.i, self.j, self.s, self.coeff + other.coeff)
+        return HoppingOp(self.i, self.j, self.s, self.coeff + other.coeff, self.mod)
 
     def __sub__(self, other):
         """
@@ -198,11 +207,17 @@ class HoppingOp(HamiltonianOp):
         """
         Represent the operator in terms of fermionic field operators.
         """
-        return FieldOp([
+        if self.mod ==0:
+            return FieldOp([
             ProductFieldOp([ElementaryFieldOp(FieldOpType.FERMI_CREATE,  self.i, self.s),
                             ElementaryFieldOp(FieldOpType.FERMI_ANNIHIL, self.j, self.s)], self.coeff),
             ProductFieldOp([ElementaryFieldOp(FieldOpType.FERMI_CREATE,  self.j, self.s),
                             ElementaryFieldOp(FieldOpType.FERMI_ANNIHIL, self.i, self.s)], self.coeff)])
+        return FieldOp_FB([
+            ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.FERMI_CREATE, self.i, self.s),
+                               ElementaryFieldOp_FB(FieldOpType_FB.FERMI_ANNIHIL, self.j, self.s)], self.coeff),
+            ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.FERMI_CREATE, self.j, self.s),
+                               ElementaryFieldOp_FB(FieldOpType_FB.FERMI_ANNIHIL, self.i, self.s)], self.coeff)])
 
     def support(self) -> list[tuple]:
         """
@@ -216,7 +231,7 @@ class HoppingOp(HamiltonianOp):
         """
         return HoppingOp(tuple(x + s for x, s in zip(self.i, shift)),
                          tuple(x + s for x, s in zip(self.j, shift)),
-                         self.s, self.coeff)
+                         self.s, self.coeff, self.mod)
 
     def normalize(self) -> tuple:
         """
@@ -224,7 +239,7 @@ class HoppingOp(HamiltonianOp):
         """
         if self.coeff == 1:
             return self, 1
-        return HoppingOp(self.i, self.j, self.s, 1), self.coeff
+        return HoppingOp(self.i, self.j, self.s, 1, self.mod), self.coeff
 
     def is_zero(self) -> bool:
         """
@@ -249,7 +264,7 @@ class HoppingOp(HamiltonianOp):
         """
         Interchange i <-> j, resulting in logically the same operator.
         """
-        return HoppingOp(self.j, self.i, self.s, self.coeff)
+        return HoppingOp(self.j, self.i, self.s, self.coeff, self.mod)
 
     def standard_form(self):
         """
@@ -259,6 +274,10 @@ class HoppingOp(HamiltonianOp):
             return self
         else:
             return self.flip()
+    
+    def set_mod(self, mod:int = 0):
+        assert mod in [0,1]
+        self.mod = mod
 
 
 class AntisymmHoppingOp(HamiltonianOp):
@@ -266,19 +285,21 @@ class AntisymmHoppingOp(HamiltonianOp):
     Anti-symmetric hopping term :math:`a^{\dagger}_{i\sigma} a_{j\sigma} - h.c.`
     between sites `i` and `j` with spin `s`.
     """
-    def __init__(self, i: Sequence[int], j: Sequence[int], s: int, coeff: float):
+    def __init__(self, i: Sequence[int], j: Sequence[int], s: int, coeff: float, mod:int = 0):
         self.i = tuple(i)
         self.j = tuple(j)
         assert self.i != self.j
         assert s in [0, 1]
         self.s = s
         self.coeff = coeff
+        assert mod in [0,1]
+        self.mod = mod
 
     def __neg__(self):
         """
         Logical negation.
         """
-        return AntisymmHoppingOp(self.i, self.j, self.s, -self.coeff)
+        return AntisymmHoppingOp(self.i, self.j, self.s, -self.coeff, self.mod)
 
     def __rmul__(self, other):
         """
@@ -286,7 +307,7 @@ class AntisymmHoppingOp(HamiltonianOp):
         """
         if not isinstance(other, (Rational, float)):
             raise ValueError("expecting a scalar argument")
-        return AntisymmHoppingOp(self.i, self.j, self.s, other * self.coeff)
+        return AntisymmHoppingOp(self.i, self.j, self.s, other * self.coeff, self.mod)
 
     def __add__(self, other):
         """
@@ -296,7 +317,7 @@ class AntisymmHoppingOp(HamiltonianOp):
             return self
         if not self.proportional(other):
             raise ValueError("can only add another anti-symmetric hopping term acting on same sites")
-        return AntisymmHoppingOp(self.i, self.j, self.s, self.coeff + other.coeff)
+        return AntisymmHoppingOp(self.i, self.j, self.s, self.coeff + other.coeff, self.mod)
 
     def __sub__(self, other):
         """
@@ -346,11 +367,17 @@ class AntisymmHoppingOp(HamiltonianOp):
         """
         Represent the operator in terms of fermionic field operators.
         """
-        return FieldOp([
+        if self.mod == 0:
+            return FieldOp([
             ProductFieldOp([ElementaryFieldOp(FieldOpType.FERMI_CREATE,  self.i, self.s),
                             ElementaryFieldOp(FieldOpType.FERMI_ANNIHIL, self.j, self.s)],  self.coeff),
             ProductFieldOp([ElementaryFieldOp(FieldOpType.FERMI_CREATE,  self.j, self.s),
                             ElementaryFieldOp(FieldOpType.FERMI_ANNIHIL, self.i, self.s)], -self.coeff)])
+        return FieldOp_FB([
+            ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.FERMI_CREATE,  self.i, self.s),
+                            ElementaryFieldOp_FB(FieldOpType_FB.FERMI_ANNIHIL, self.j, self.s)],  self.coeff),
+            ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.FERMI_CREATE,  self.j, self.s),
+                            ElementaryFieldOp_FB(FieldOpType_FB.FERMI_ANNIHIL, self.i, self.s)], -self.coeff)])
 
     def support(self) -> list[tuple]:
         """
@@ -364,7 +391,7 @@ class AntisymmHoppingOp(HamiltonianOp):
         """
         return AntisymmHoppingOp(tuple(x + s for x, s in zip(self.i, shift)),
                                  tuple(x + s for x, s in zip(self.j, shift)),
-                                 self.s, self.coeff)
+                                 self.s, self.coeff, self.mod)
 
     def normalize(self) -> tuple:
         """
@@ -372,7 +399,7 @@ class AntisymmHoppingOp(HamiltonianOp):
         """
         if self.coeff == 1:
             return self, 1
-        return AntisymmHoppingOp(self.i, self.j, self.s, 1), self.coeff
+        return AntisymmHoppingOp(self.i, self.j, self.s, 1, self.mod), self.coeff
 
     def is_zero(self) -> bool:
         """
@@ -397,7 +424,7 @@ class AntisymmHoppingOp(HamiltonianOp):
         """
         Interchange i <-> j and flip sign, resulting in logically the same operator.
         """
-        return AntisymmHoppingOp(self.j, self.i, self.s, -self.coeff)
+        return AntisymmHoppingOp(self.j, self.i, self.s, -self.coeff, self.mod)
 
     def standard_form(self):
         """
@@ -407,6 +434,10 @@ class AntisymmHoppingOp(HamiltonianOp):
             return self
         else:
             return self.flip()
+    
+    def set_mod(self, mod:int = 0):
+        assert mod in [0,1]
+        self.mod = mod
 
 
 class NumberOp(HamiltonianOp):
@@ -416,17 +447,22 @@ class NumberOp(HamiltonianOp):
     s = 1 ----- spin down
     s = 2 ----- boson
     """
-    def __init__(self, i: Sequence[int], s: int, coeff: float):
+    def __init__(self, i: Sequence[int], s: int, coeff: float, mod:int =0):
         self.i = tuple(i)
         assert s in [0, 1, 2]
         self.s = s
         self.coeff = coeff
+        assert mod in [0,1]
+        if s==2:
+            self.mod=1
+        else:
+            self.mod = mod
 
     def __neg__(self):
         """
         Logical negation.
         """
-        return NumberOp(self.i, self.s, -self.coeff)
+        return NumberOp(self.i, self.s, -self.coeff, self.mod)
 
     def __rmul__(self, other):
         """
@@ -434,7 +470,7 @@ class NumberOp(HamiltonianOp):
         """
         if not isinstance(other, (Rational, float)):
             raise ValueError("expecting a scalar argument")
-        return NumberOp(self.i, self.s, other * self.coeff)
+        return NumberOp(self.i, self.s, other * self.coeff, self.mod)
 
     def __add__(self, other):
         """
@@ -444,7 +480,7 @@ class NumberOp(HamiltonianOp):
             return self
         if not self.proportional(other):
             raise ValueError("can only add another number operator acting on same site")
-        return NumberOp(self.i, self.s, self.coeff + other.coeff)
+        return NumberOp(self.i, self.s, self.coeff + other.coeff, self.mod)
 
     def __sub__(self, other):
         """
@@ -499,9 +535,13 @@ class NumberOp(HamiltonianOp):
         """
         Represent the operator in terms of fermionic field operators.
         """
-        return FieldOp([
+        if self.mod==0:
+            return FieldOp([
             ProductFieldOp([
                 ElementaryFieldOp(FieldOpType.FERMI_NUMBER, self.i, self.s)], self.coeff)])
+        return FieldOp_FB([
+            ProductFieldOp_FB([
+                ElementaryFieldOp_FB(FieldOpType_FB.FERMI_NUMBER, self.i, self.s)], self.coeff)])
 
     def support(self) -> list[tuple]:
         """
@@ -513,7 +553,7 @@ class NumberOp(HamiltonianOp):
         """
         Translate by `shift` and return the translated operator.
         """
-        return NumberOp(tuple(x + s for x, s in zip(self.i, shift)), self.s, self.coeff)
+        return NumberOp(tuple(x + s for x, s in zip(self.i, shift)), self.s, self.coeff, self.mod)
 
     def normalize(self) -> tuple:
         """
@@ -521,7 +561,7 @@ class NumberOp(HamiltonianOp):
         """
         if self.coeff == 1:
             return self, 1
-        return NumberOp(self.i, self.s, 1), self.coeff
+        return NumberOp(self.i, self.s, 1, self.mod), self.coeff
 
     def is_zero(self) -> bool:
         """
@@ -542,21 +582,29 @@ class NumberOp(HamiltonianOp):
         """
         return abs(self.coeff)
 
+    def set_mod(self, mod:int = 1):
+        if self.s==2:
+            self.mod = 1
+            return
+        assert mod in [0,1]
+        self.mod = mod
+
 class ModifiedNumOp(HamiltonianOp):
     """
     Number operator :math:`n_{i\sigma}-Identity/2`.
     """
-    def __init__(self,i:Sequence[int], s:int, coeff:float) -> None:
+    def __init__(self,i:Sequence[int], s:int, coeff:float, mod:int =0) -> None:
         self.i = tuple(i)
         assert s in [0, 1]
         self.s = s
         self.coeff = coeff
+        self.mod = mod
     
     def __neg__(self):
         """
         Logical negation.
         """
-        return ModifiedNumOp(self.i, self.s, -self.coeff)
+        return ModifiedNumOp(self.i, self.s, -self.coeff, self.mod)
     
     def __rmul__(self, other):
         """
@@ -564,7 +612,7 @@ class ModifiedNumOp(HamiltonianOp):
         """
         if not isinstance(other, (Rational, float)):
             raise ValueError("expecting a scalar argument")
-        return ModifiedNumOp(self.i, self.s, other * self.coeff)
+        return ModifiedNumOp(self.i, self.s, other * self.coeff, self.mod)
 
     def __add__(self, other):
         """
@@ -574,7 +622,7 @@ class ModifiedNumOp(HamiltonianOp):
             return self
         if not self.proportional(other):
             raise ValueError("can only add another number operator acting on same site")
-        return ModifiedNumOp(self.i, self.s, self.coeff + other.coeff)
+        return ModifiedNumOp(self.i, self.s, self.coeff + other.coeff, self.mod)
 
     def __sub__(self, other):
         """
@@ -624,10 +672,13 @@ class ModifiedNumOp(HamiltonianOp):
         """
         TODO: the function need to be modified
         """
-        return FieldOp([
+        if self.mod ==0:
+            return FieldOp([
             ProductFieldOp([
-                ElementaryFieldOp(FieldOpType.FERMI_MODNUM, self.i, self.s)], self.coeff)
-        ])
+                ElementaryFieldOp(FieldOpType.FERMI_MODNUM, self.i, self.s)], self.coeff)])
+        return FieldOp_FB([
+            ProductFieldOp_FB([
+                ElementaryFieldOp_FB(FieldOpType_FB.FERMI_MODNUM, self.i, self.s)], self.coeff)])
 
     def support(self) -> list[tuple]:
         """
@@ -639,7 +690,7 @@ class ModifiedNumOp(HamiltonianOp):
         """
         Translate by `shift` and return the translated operator.
         """
-        return ModifiedNumOp(tuple(x + s for x, s in zip(self.i, shift)), self.s, self.coeff)
+        return ModifiedNumOp(tuple(x + s for x, s in zip(self.i, shift)), self.s, self.coeff, self.mod)
 
     def normalize(self) -> tuple:
         """
@@ -647,7 +698,7 @@ class ModifiedNumOp(HamiltonianOp):
         """
         if self.coeff == 1:
             return self, 1
-        return ModifiedNumOp(self.i, self.s, 1), self.coeff
+        return ModifiedNumOp(self.i, self.s, 1, self.mod), self.coeff
 
     def is_zero(self) -> bool:
         """
@@ -667,9 +718,16 @@ class ModifiedNumOp(HamiltonianOp):
         Upper bound on the spectral norm of the operator.
         """
         return abs(self.coeff*0.5)
+    
+    def set_mod(self, mod:int = 1):
+        if self.s==2:
+            self.mod = 1
+            return
+        assert mod in [0,1]
+        self.mod = mod
 
     def Mod2Num(self) -> NumberOp:
-        return NumberOp(self.i, self.s, self.coeff)
+        return NumberOp(self.i, self.s, self.coeff, self.mod)
 
 
 class ZeroOp(HamiltonianOp):
@@ -764,6 +822,9 @@ class ZeroOp(HamiltonianOp):
         Indicate whether the operator acts as zero operator.
         """
         return True
+
+    def set_mod(self, mod: int):
+        return
 
     @property
     def fermi_weight(self) -> int:
@@ -862,22 +923,22 @@ class PauliOp(HamiltonianOp):
             return self.cate == other.cate
         return False
     
-    def as_field_operator(self) -> FieldOp:
+    def as_field_operator(self) -> FieldOp_FB:
         """
         TODO: Transfer the Identity Operator into field Op form
         """
         match self.cate:
             case 1: # pauli X
-                op_list = [ProductFieldOp([ElementaryFieldOp(FieldOpType.BOSON_CREATE, self.i, 2)], self.coeff), 
-                ProductFieldOp([ElementaryFieldOp(FieldOpType.BOSON_ANNIHIL, self.i, 2)], self.coeff)]
+                op_list = [ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.BOSON_CREATE, self.i, 2)], self.coeff), 
+                ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.BOSON_ANNIHIL, self.i, 2)], self.coeff)]
             case 2: # i*pauli Y
-                op_list = [ProductFieldOp([ElementaryFieldOp(FieldOpType.BOSON_CREATE, self.i, 2)], -self.coeff), 
-                ProductFieldOp([ElementaryFieldOp(FieldOpType.BOSON_ANNIHIL, self.i, 2)], self.coeff)]
+                op_list = [ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.BOSON_CREATE, self.i, 2)], -self.coeff), 
+                ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.BOSON_ANNIHIL, self.i, 2)], self.coeff)]
             case 3: # pauli Z
-                op_list = [ProductFieldOp([ElementaryFieldOp(FieldOpType.FERMI_MODNUM, self.i, 2)], -2.*self.coeff)]
+                op_list = [ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.FERMI_MODNUM, self.i, 2)], -2.*self.coeff)]
             case _: # Identity
                 raise RuntimeError("Identity operator should be emitted")
-        return FieldOp(op_list)
+        return FieldOp_FB(op_list)
     
     def support(self) -> list[tuple]:
         """
@@ -903,8 +964,15 @@ class PauliOp(HamiltonianOp):
     def fermi_weight(self) -> int:
         return 2
     
+    @property
+    def mod(self) -> int:
+        return 1
+
     def norm_bound(self) -> float:
         return abs(self.coeff)
+    
+    def set_mod(self, mod:int):
+        return
 
 class ProductOp(HamiltonianOp):
     """
@@ -913,6 +981,7 @@ class ProductOp(HamiltonianOp):
     def __init__(self, ops: Sequence[HamiltonianOp], coeff: float):
         self.ops = []
         self.coeff = coeff
+        self.mod = 0
         for op in ops:
             if op.is_zero():
                 self.ops = [ZeroOp()]
@@ -922,10 +991,14 @@ class ProductOp(HamiltonianOp):
             if isinstance(op, ProductOp):
                 self.ops += op.ops
                 self.coeff *= op.coeff
+                self.mod = max(self.mod, op.mod)
             else:
                 opn, c = op.normalize()
                 self.ops.append(opn)
                 self.coeff *= c
+                if opn.mod ==1:
+                    self.mod = 1
+        self.mod_sync()
 
     def __neg__(self):
         """
@@ -1084,6 +1157,29 @@ class ProductOp(HamiltonianOp):
         # use sub-multiplicative property of the spectral norm
         return abs(self.coeff) * math.prod([op.norm_bound() for op in self.ops])
 
+    def set_mod(self, mod:int = 0):
+        assert mod in [0,1]
+        if mod == 0:
+            flag = False
+            for op in self.ops:
+                if isinstance(op,NumberOp):
+                    if op.s == 2:
+                        flag = True
+                if flag:
+                    break
+                flag = flag or isinstance(op, PauliOp)
+            if flag:
+                print("Bosonic operators exist, set mod as 1")
+                self.mod = 1
+                self.mod_sync()
+                return
+        self.mod = mod
+        self.mod_sync()
+    
+    def mod_sync(self):
+        for op in self.ops:
+            op.set_mod(self.mod)
+
     def is_numop_product(self) -> bool:
         """
         Whether the operator is a product of number operators.
@@ -1097,6 +1193,7 @@ class SumOp(HamiltonianOp):
     """
     def __init__(self, terms: Sequence[HamiltonianOp]):
         self.terms = []
+        self.mod = 0
         for term in terms:
             # filter out zero operators
             if term.is_zero():
@@ -1104,9 +1201,14 @@ class SumOp(HamiltonianOp):
             # flatten nested sums
             if isinstance(term, SumOp):
                 self.terms += term.terms
+                if term.mod ==1:
+                    self.mod = 1
             else:
                 self.terms.append(term)
+                if term.mod ==1:
+                    self.mod = 1
         self.terms = sorted(self.terms)
+        self.mod_sync()
 
     def __neg__(self):
         """
@@ -1194,6 +1296,8 @@ class SumOp(HamiltonianOp):
         Represent the operator in terms of fermionic field operators.
         """
         s = FieldOp([])
+        if self.mod ==1:
+            s = FieldOp_FB([])
         for term in self.terms:
             s += term.as_field_operator()
         return s
@@ -1338,7 +1442,29 @@ class SumOp(HamiltonianOp):
         return bool(self.terms) and all( isinstance(term, NumberOp) or
                                         (isinstance(term, ProductOp) and term.is_numop_product())
                                             for term in self.terms)
+    
+    def set_mod(self, mod:int =0):
+        assert mod in [0,1]
+        if mod ==0:
+            flag = False
+            for term in self.terms:
+                if isinstance(term,NumberOp):
+                    if term.s == 2:
+                        flag = True
+                if flag:
+                    break
+                flag = flag or isinstance(term, PauliOp)
+            if flag:
+                print("Bosonic operators exist, set mod as 1")
+                self.mod = 1
+                self.mod_sync()
+                return
+        self.mod = mod
+        self.mod_sync()
 
+    def mod_sync(self):
+        for term in self.terms:
+            term.set_mod(self.mod)
 
 def _spectral_norm_conserved_particles(nmodes: int, op):
     """

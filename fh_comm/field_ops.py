@@ -16,9 +16,17 @@ class FieldOpType(enum.Enum):
     FERMI_ANNIHIL = 1   # fermionic annihilation operator
     FERMI_NUMBER  = 2   # fermionic/bosonic number operator
     FERMI_MODNUM = 3    # fermionic/bosonic number operator (modified) i.e. n_i-1/2
+
+class FieldOpType_FB(enum.Enum):
+    """
+    Fermionic-Bosonic field operator type.
+    """
+    FERMI_CREATE  = 0   # fermionic creation operator
+    FERMI_ANNIHIL = 1   # fermionic annihilation operator
+    FERMI_NUMBER  = 2   # fermionic/bosonic number operator
+    FERMI_MODNUM = 3    # fermionic/bosonic number operator (modified) i.e. n_i-1/2
     BOSON_CREATE = 4    # bosonic creation operator
     BOSON_ANNIHIL = 5   # bosonic annihilation operator
-
 
 class ElementaryFieldOp:
     """
@@ -27,7 +35,7 @@ class ElementaryFieldOp:
     def __init__(self, otype: FieldOpType, i: Sequence[int], s: int):
         self.otype = otype
         self.i = tuple(i)
-        assert s in [0, 1, 2]
+        assert s in [0, 1]
         self.s = s
 
     def __str__(self) -> str:
@@ -37,8 +45,6 @@ class ElementaryFieldOp:
         nt = 'up'
         if self.s==1:
             nt = 'dn'
-        elif self.s==2:
-            nt = 'bn'
         if self.otype == FieldOpType.FERMI_CREATE:
             return f"ad_{{{self.i}, {nt}}}"
         if self.otype == FieldOpType.FERMI_ANNIHIL:
@@ -47,13 +53,35 @@ class ElementaryFieldOp:
             return f"n_{{{self.i}, {nt}}}"
         if self.otype == FieldOpType.FERMI_MODNUM:
             return f"mn_{{{self.i}, {nt}}}"
-        if self.otype == FieldOpType.BOSON_CREATE:
-            return f"bc_{{{self.i}, {nt}}}"
-        if self.otype == FieldOpType.BOSON_ANNIHIL:
-            return f"ba_{{{self.i}, {nt}}}"
         assert False
 
-##TODO: Create an other type ElementaryFieldOp?
+class ElementaryFieldOp_FB(ElementaryFieldOp):
+    def __init__(self, otype: FieldOpType_FB, i: Sequence[int], s: int):
+        if s!=2:
+            super().__init__(otype, i, s)
+        else:
+            super().__init__(otype, i, 0)
+            self.s=s
+    
+    def __str__(self) -> str:
+        nt = 'up'
+        if self.s==1:
+            nt = 'dn'
+        elif self.s==2:
+            nt = 'bn'
+        if self.otype == FieldOpType_FB.FERMI_CREATE:
+            return f"ad_{{{self.i}, {nt}}}"
+        if self.otype == FieldOpType_FB.FERMI_ANNIHIL:
+            return f"a_{{{self.i}, {nt}}}"
+        if self.otype == FieldOpType_FB.FERMI_NUMBER:
+            return f"n_{{{self.i}, {nt}}}"
+        if self.otype == FieldOpType_FB.FERMI_MODNUM:
+            return f"mn_{{{self.i}, {nt}}}"
+        if self.otype == FieldOpType_FB.BOSON_CREATE:
+            return f"bc_{{{self.i}, {nt}}}"
+        if self.otype == FieldOpType_FB.BOSON_ANNIHIL:
+            return f"ba_{{{self.i}, {nt}}}"
+        assert False
 
 class ProductFieldOp:
     """
@@ -97,6 +125,47 @@ class ProductFieldOp:
                 s += ("" if s == "" else " ") + str(op)
         return c + s
 
+class ProductFieldOp_FB(ProductFieldOp):
+    """
+    Product of elementary fermionic-bosonic field operators.
+    """
+    def __init__(self, ops: Sequence[ElementaryFieldOp_FB], coeff: float):
+        self.ops = list(ops)
+        self.coeff = coeff
+    
+    def __rmul__(self, other):
+        """
+        Logical scalar product.
+        """
+        if not isinstance(other, (Rational, float)):
+            raise ValueError("expecting a scalar argument")
+        return ProductFieldOp_FB(self.ops, other * self.coeff)
+    
+    def __matmul__(self, other):
+        """
+        Logical product.
+        """
+        return ProductFieldOp_FB(self.ops + other.ops, self.coeff * other.coeff)
+    
+    def __neg__(self):
+        """
+        Logical negation.
+        """
+        return ProductFieldOp_FB(self.ops, -self.coeff)
+    
+    def __str__(self) -> str:
+        """
+        Represent the operator as a string.
+        """
+        c = "" if self.coeff == 1 else f"({self.coeff}) "
+        if not self.ops:
+            # logical identity operator
+            s = "id"
+        else:
+            s = ""
+            for op in self.ops:
+                s += ("" if s == "" else " ") + str(op)
+        return c + s
 
 class FieldOp:
     """
@@ -117,7 +186,7 @@ class FieldOp:
         if not self.terms:
             # fast-return zero matrix if terms are empty
             return sparse.csr_matrix((2**L, 2**L))
-        clist, alist, nlist, mlist, bclist, balist = construct_fermionic_operators(L)
+        clist, alist, nlist, mlist,_,_ = construct_fermionic_operators(L)
         mat = 0
         if translatt is None:
             tps = [len(latt_shape) * (0,)]
@@ -137,10 +206,6 @@ class FieldOp:
                         fstring = fstring @ nlist[j]
                     elif op.otype == FieldOpType.FERMI_MODNUM:
                         fstring = fstring @ mlist[j]
-                    elif op.otype == FieldOpType.BOSON_CREATE:
-                        fstring = fstring @ bclist[j]
-                    elif op.otype == FieldOpType.BOSON_ANNIHIL:
-                        fstring == fstring @ balist[j]
                     else:
                         raise RuntimeError(f"unexpected fermionic operator type {op.otype}")
                 mat += float(term.coeff) * fstring
@@ -167,7 +232,7 @@ class FieldOp:
         # active sites (including spin)
         supp = self.support()
         L = len(supp)
-        clist, alist, nlist, mlist, bclist, balist = construct_fermionic_operators(L)
+        clist, alist, nlist, mlist, _, _ = construct_fermionic_operators(L)
         # construct matrix representation
         mat = 0
         for term in self.terms:
@@ -183,10 +248,6 @@ class FieldOp:
                     fstring = fstring @ nlist[j]
                 elif op.otype == FieldOpType.FERMI_MODNUM:
                     fstring = fstring @ mlist[j]
-                elif op.otype == FieldOpType.BOSON_CREATE:
-                    fstring = fstring @ bclist[j]
-                elif op.otype == FieldOpType.BOSON_ANNIHIL:
-                    fstring == fstring @ balist[j]
                 else:
                     raise RuntimeError(f"unexpected fermionic operator type {op.otype}")
             mat += float(term.coeff) * fstring
@@ -261,6 +322,170 @@ class FieldOp:
         if not self.terms:
             # logical zero operator
             return "<empty FieldOp>"
+        s = ""
+        for term in self.terms:
+            s += ("" if s == "" else " + ") + str(term)
+        return s
+
+
+class FieldOp_FB(FieldOp):
+    """
+    Sum of products of fermionic-bosonic field operators.
+    """
+    def __init__(self, terms: Sequence[ProductFieldOp_FB]):
+        self.terms = list(terms)
+    
+    def as_matrix(self, latt_shape: Sequence[int], translatt: SubLattice = None):
+        # num of lattice sites
+        # we consider the bosons as a 'Special' spin-status
+        # Therefore, there factor 3 from spin (up, down, boson)
+        L = 3* math.prod(latt_shape)
+        if not self.terms:
+            # fast-return zero matrix if terms are empty
+            return sparse.csr_matrix((2**L, 2**L))
+        clist, alist, nlist, mlist, bclist, balist = construct_fermionic_operators(L)
+        mat = 0
+        if translatt is None:
+            tps = [len(latt_shape) * (0,)]
+        else:
+            tps = translatt.instantiate(len(latt_shape) * (0,), latt_shape)
+        for tp in tps:
+            for term in self.terms:
+                fstring = sparse.identity(2**L)
+                for op in term.ops:
+                    # take spin into account for indexing
+                    j = 3 * latt_coord_to_index(tuple(x + y for x, y in zip(op.i, tp)), latt_shape) + op.s
+                    if op.otype == FieldOpType_FB.FERMI_CREATE:
+                        fstring = fstring @ clist[j]
+                    elif op.otype == FieldOpType_FB.FERMI_ANNIHIL:
+                        fstring = fstring @ alist[j]
+                    elif op.otype == FieldOpType_FB.FERMI_NUMBER:
+                        fstring = fstring @ nlist[j]
+                    elif op.otype == FieldOpType_FB.FERMI_MODNUM:
+                        fstring = fstring @ mlist[j]
+                    elif op.otype == FieldOpType_FB.BOSON_CREATE:
+                        fstring = fstring @ bclist[j]
+                    elif op.otype == FieldOpType_FB.BOSON_ANNIHIL:
+                        fstring == fstring @ balist[j]
+                    else:
+                        raise RuntimeError(f"unexpected fermionic operator type {op.otype}")
+                mat += float(term.coeff) * fstring
+        return mat
+
+    def support(self) -> list[tuple]:
+        """
+        Support of the operator: lattice sites which it acts on (including spin).
+        """
+        s = []
+        for term in self.terms:
+            for op in term.ops:
+                s.append(op.i + (op.s,))
+        return sorted(list(set(s)))
+    
+    def as_compact_matrix(self):
+        """
+        Generate the sparse matrix representation on a virtual lattice
+        consisting of the sites acted on by the field operators.
+        """
+        if not self.terms:
+            # fast-return zero matrix if terms are empty
+            return sparse.csr_matrix((1, 1))
+        # active sites (including spin)
+        supp = self.support()
+        L = len(supp)
+        clist, alist, nlist, mlist, bclist, balist = construct_fermionic_operators(L)
+        # construct matrix representation
+        mat = 0
+        for term in self.terms:
+            fstring = sparse.identity(2**L)
+            for op in term.ops:
+                # take spin into account for indexing
+                j = supp.index(op.i + (op.s,))
+                if op.otype == FieldOpType_FB.FERMI_CREATE:
+                    fstring = fstring @ clist[j]
+                elif op.otype == FieldOpType_FB.FERMI_ANNIHIL:
+                    fstring = fstring @ alist[j]
+                elif op.otype == FieldOpType_FB.FERMI_NUMBER:
+                    fstring = fstring @ nlist[j]
+                elif op.otype == FieldOpType_FB.FERMI_MODNUM:
+                    fstring = fstring @ mlist[j]
+                elif op.otype == FieldOpType_FB.BOSON_CREATE:
+                    fstring = fstring @ bclist[j]
+                elif op.otype == FieldOpType_FB.BOSON_ANNIHIL:
+                    fstring == fstring @ balist[j]
+                else:
+                    raise RuntimeError(f"unexpected fermionic operator type {op.otype}")
+            mat += float(term.coeff) * fstring
+        return mat
+    
+    def quadratic_coefficients(self):
+        r"""
+        Find the coefficients in the representation
+        :math:`\sum_{i,j} h_{ij} a^{\dagger}_i a_j`,
+        assuming that the field operator actually has this form.
+        """
+        if not self.terms:
+            # fast-return zero matrix if terms are empty
+            return np.zeros((1, 1))
+        # active sites (including spin)
+        supp = self.support()
+        L = len(supp)
+        h = np.zeros((L, L))
+        for term in self.terms:
+            if len(term.ops) == 1:
+                op = term.ops[0]
+                if op.otype != FieldOpType_FB.FERMI_NUMBER:
+                    raise ValueError("expecting number operator")
+                j = supp.index(op.i + (op.s,))
+                h[j, j] += term.coeff
+            elif len(term.ops) == 2:
+                op_a = term.ops[0]
+                op_b = term.ops[1]
+                if op_a.otype != FieldOpType_FB.FERMI_CREATE:
+                    raise ValueError("expecting creation operator")
+                if op_b.otype != FieldOpType_FB.FERMI_ANNIHIL:
+                    raise ValueError("expecting annihilation operator")
+                i = supp.index(op_a.i + (op_a.s,))
+                j = supp.index(op_b.i + (op_b.s,))
+                h[i, j] += term.coeff
+            else:
+                raise ValueError("field operator not of expected form")
+        return h
+    
+    def __add__(self, other):
+        """
+        Logical sum.
+        """
+        return FieldOp_FB(self.terms + other.terms)
+    
+    def __sub__(self, other):
+        """
+        Logical difference.
+        """
+        return FieldOp_FB(self.terms + [-term for term in other.terms])
+    
+    def __rmul__(self, other):
+        """
+        Logical scalar product.
+        """
+        if not isinstance(other, (Rational, float)):
+            raise ValueError("expecting a scalar argument")
+        return FieldOp_FB([other * term for term in self.terms])
+    
+    def __matmul__(self, other):
+        """
+        Logical product.
+        """
+        # take all pairwise products
+        return FieldOp_FB([t1 @ t2 for t1 in self.terms for t2 in other.terms])
+    
+    def __str__(self) -> str:
+        """
+        Represent the operator as a string.
+        """
+        if not self.terms:
+            # logical zero operator
+            return "<empty FieldOp_FB>"
         s = ""
         for term in self.terms:
             s += ("" if s == "" else " + ") + str(term)
