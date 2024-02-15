@@ -182,7 +182,7 @@ class FieldOp:
         Optionally using shifted copies on sublattice `translatt`.
         """
         # number of lattice sites; factor 2 from spin
-        L = 3 * math.prod(latt_shape)
+        L = 2 * math.prod(latt_shape)
         if not self.terms:
             # fast-return zero matrix if terms are empty
             return sparse.csr_matrix((2**L, 2**L))
