@@ -57,11 +57,10 @@ class ElementaryFieldOp:
 
 class ElementaryFieldOp_FB(ElementaryFieldOp):
     def __init__(self, otype: FieldOpType_FB, i: Sequence[int], s: int):
-        if s!=2:
-            super().__init__(otype, i, s)
-        else:
-            super().__init__(otype, i, 0)
-            self.s=s
+        self.otype = otype
+        self.i = tuple(i)
+        assert s in [0, 1, 2]
+        self.s = s
     
     def __str__(self) -> str:
         nt = 'up'
