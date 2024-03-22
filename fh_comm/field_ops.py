@@ -185,7 +185,7 @@ class FieldOp:
         if not self.terms:
             # fast-return zero matrix if terms are empty
             return sparse.csr_matrix((2**L, 2**L))
-        clist, alist, nlist, mlist,_,_ = construct_fermionic_operators(L)
+        clist, alist, nlist, mlist = construct_fermionic_operators(L)
         mat = 0
         if translatt is None:
             tps = [len(latt_shape) * (0,)]
@@ -231,7 +231,7 @@ class FieldOp:
         # active sites (including spin)
         supp = self.support()
         L = len(supp)
-        clist, alist, nlist, mlist, _, _ = construct_fermionic_operators(L)
+        clist, alist, nlist, mlist = construct_fermionic_operators(L)
         # construct matrix representation
         mat = 0
         for term in self.terms:
@@ -342,7 +342,7 @@ class FieldOp_FB(FieldOp):
         if not self.terms:
             # fast-return zero matrix if terms are empty
             return sparse.csr_matrix((2**L, 2**L))
-        clist, alist, nlist, mlist, bclist, balist = construct_fermionic_operators(L)
+        clist, alist, nlist, mlist, bclist, balist = construct_Holstein_operators(L)
         mat = 0
         if translatt is None:
             tps = [len(latt_shape) * (0,)]
@@ -391,8 +391,16 @@ class FieldOp_FB(FieldOp):
             return sparse.csr_matrix((1, 1))
         # active sites (including spin)
         supp = self.support()
+        modes_list = []
+        for label in supp:
+            if label[-1] == 2:
+                modes_list.append('b') # b for Bosons
+            else:
+                modes_list.append('f') # f for Fermions
         L = len(supp)
-        clist, alist, nlist, mlist, bclist, balist = construct_fermionic_operators(L)
+        assert L == len(modes_list)
+        modes_list = tuple(modes_list)
+        clist, alist, nlist, mlist, bclist, balist = construct_Holstein_operators_alt(modes_list)
         # construct matrix representation
         mat = 0
         for term in self.terms:
@@ -503,6 +511,48 @@ def  construct_fermionic_operators(nmodes: int):
     U = sparse.csr_matrix([[ 0.,  0.], [ 1.,  0.]])
     clist = []
     mlist = [] # indeed 1/2 * -Z
+    for i in range(nmodes):
+        c = sparse.identity(1)
+        m = sparse.identity(1)
+        for j in range(nmodes):
+            if j < i:
+                c = sparse.kron(c, I)
+                m = sparse.kron(m, I)
+            elif j == i:
+                c = sparse.kron(c, U)
+                m = sparse.kron(m, Z)*(-.5)
+            else:
+                c = sparse.kron(c, Z)
+                m = sparse.kron(m, I)
+        c = sparse.csr_matrix(c)
+        m = sparse.csr_matrix(m)
+        c.eliminate_zeros()
+        m.eliminate_zeros()
+        clist.append(c)
+        mlist.append(m)
+    # corresponding annihilation operators
+    alist = [sparse.csr_matrix(c.conj().T) for c in clist]
+    # corresponding number operators
+    nlist = []
+    for i in range(nmodes):
+        f = 1 << (nmodes - i - 1)
+        data = [1. if (n & f == f) else 0. for n in range(2**nmodes)]
+        nlist.append(sparse.dia_matrix((data, 0), 2*(2**nmodes,)))
+    return clist, alist, nlist, mlist
+
+@cache
+def  construct_Holstein_operators(nmodes: int):
+    """
+    Generate sparse matrix representations of the fermionic creation and
+    annihilation operators for `nmodes` modes (or sites),
+    based on Jordan-Wigner transformation.
+    """
+    assert nmodes%3 == 0, f'nmodes = {nmodes}'
+    I = sparse.identity(2)
+    Z = sparse.csr_matrix([[ 1.,  0.], [ 0., -1.]])
+    U = sparse.csr_matrix([[ 0.,  0.], [ 1.,  0.]])
+    clist = []
+    mlist = [] # indeed 1/2 * -Z
     bclist = []
     for i in range(nmodes):
         c = sparse.identity(1)
@@ -518,7 +568,10 @@ def  construct_fermionic_operators(nmodes: int):
                 m = sparse.kron(m, Z)*(-.5)
                 bc = sparse.kron(bc, U)
             else:
-                c = sparse.kron(c, Z)
+                if j%3==2:
+                    c = sparse.kron(c, I)
+                else:
+                    c = sparse.kron(c, Z)
                 m = sparse.kron(m, I)
                 bc = sparse.kron(bc, I)
         c = sparse.csr_matrix(c)
@@ -534,6 +587,62 @@ def  construct_fermionic_operators(nmodes: int):
     alist = [sparse.csr_matrix(c.conj().T) for c in clist]
     balist = [sparse.csr_matrix(bc.conj().T) for bc in bclist]
     # corresponding number operators
+    nlist = []
+    for i in range(nmodes):
+        f = 1 << (nmodes - i - 1)
+        data = [1. if (n & f == f) else 0. for n in range(2**nmodes)]
+        nlist.append(sparse.dia_matrix((data, 0), 2*(2**nmodes,)))
+    return clist, alist, nlist, mlist, bclist, balist
+
+@cache
+def construct_Holstein_operators_alt(nmodes_list):
+    nmodes_list = list(nmodes_list)
+    I = sparse.identity(2)
+    Z = sparse.csr_matrix([[ 1.,  0.], [ 0., -1.]])
+    U = sparse.csr_matrix([[ 0.,  0.], [ 1.,  0.]])
+    clist = []
+    mlist = [] # indeed 1/2 * -Z
+    bclist = []
+    nmodes = len(nmodes_list)
+    for i in range(nmodes):
+        c = sparse.identity(1)
+        m = sparse.identity(1)
+        bc = sparse.identity(1)
+        if nmodes_list[i] == 'b':
+            for j in range(nmodes):
+                if j==i:
+                    c = sparse.kron(c, I)
+                    m = sparse.kron(m, I)
+                    bc = sparse.kron(bc, U)
+                else:
+                    c = sparse.kron(c, I)
+                    m = sparse.kron(m, I)
+                    bc = sparse.kron(bc, I)
+        else:
+            for j in range(nmodes):
+                if j < i:
+                    c = sparse.kron(c, I)
+                    m = sparse.kron(m, I)
+                    bc = sparse.kron(bc, I)
+                elif j == i:
+                    c = sparse.kron(c, U)
+                    m = sparse.kron(m, Z)*(-.5)
+                    bc = sparse.kron(bc, I)
+                else:
+                    c = sparse.kron(c, Z)
+                    m = sparse.kron(m, I)
+                    bc = sparse.kron(bc, I)
+        c = sparse.csr_matrix(c)
+        m = sparse.csr_matrix(m)
+        bc = sparse.csr_matrix(bc)
+        c.eliminate_zeros()
+        m.eliminate_zeros()
+        bc.eliminate_zeros()
+        clist.append(c)
+        mlist.append(m)
+        bclist.append(bc)
+    alist = [sparse.csr_matrix(c.conj().T) for c in clist]
+    balist = [sparse.csr_matrix(bc.conj().T) for bc in bclist]
     nlist = []
     for i in range(nmodes):
         f = 1 << (nmodes - i - 1)
