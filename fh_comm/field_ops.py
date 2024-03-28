@@ -612,7 +612,7 @@ def construct_Holstein_operators_alt(nmodes_list):
             for j in range(nmodes):
                 if j==i:
                     c = sparse.kron(c, I)
-                    m = sparse.kron(m, I)
+                    m = sparse.kron(m, Z)*(-.5)
                     bc = sparse.kron(bc, U)
                 else:
                     c = sparse.kron(c, I)
