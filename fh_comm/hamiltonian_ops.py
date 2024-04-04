@@ -188,7 +188,7 @@ class HoppingOp(HamiltonianOp):
         assert isinstance(other, HamiltonianOp)
         if isinstance(other, (AntisymmHoppingOp, NumberOp, ModifiedNumOp, ProductOp, SumOp)):
             return True
-        if isinstance(other, (ZeroOp, PauliOp)):
+        if isinstance(other, ZeroOp):
             return False
         assert isinstance(other, HoppingOp)
         # lexicographical comparison
@@ -348,7 +348,7 @@ class AntisymmHoppingOp(HamiltonianOp):
         assert isinstance(other, HamiltonianOp)
         if isinstance(other, (NumberOp, ModifiedNumOp, ProductOp, SumOp)):
             return True
-        if isinstance(other, (ZeroOp, PauliOp, HoppingOp)):
+        if isinstance(other, (ZeroOp, HoppingOp)):
             return False
         assert isinstance(other, AntisymmHoppingOp)
         # lexicographical comparison
@@ -445,11 +445,10 @@ class NumberOp(HamiltonianOp):
     Number operator :math:`n_{i\sigma}`.
     s = 0 ----- spin up
     s = 1 ----- spin down
-    s = 2 ----- boson
     """
     def __init__(self, i: Sequence[int], s: int, coeff: float, mod:int =0):
         self.i = tuple(i)
-        assert s in [0, 1, 2]
+        assert s in [0, 1]
         self.s = s
         self.coeff = coeff
         assert mod in [0,1]
@@ -516,7 +515,7 @@ class NumberOp(HamiltonianOp):
         assert isinstance(other, HamiltonianOp)
         if isinstance(other, (ModifiedNumOp,ProductOp, SumOp)):
             return True
-        if isinstance(other, (ZeroOp, PauliOp, HoppingOp, AntisymmHoppingOp)):
+        if isinstance(other, (ZeroOp, HoppingOp, AntisymmHoppingOp)):
             return False
         assert isinstance(other, NumberOp)
         # lexicographical comparison
@@ -653,7 +652,7 @@ class ModifiedNumOp(HamiltonianOp):
         assert isinstance(other, HamiltonianOp)
         if isinstance(other, (ProductOp, SumOp)):
             return True
-        if isinstance(other, (ZeroOp, PauliOp, HoppingOp, AntisymmHoppingOp, NumberOp)):
+        if isinstance(other, (ZeroOp, HoppingOp, AntisymmHoppingOp, NumberOp)):
             return False
         assert isinstance(other, ModifiedNumOp)
         # lexicographical comparison
@@ -663,7 +662,7 @@ class ModifiedNumOp(HamiltonianOp):
         """
         Whether current operator is equal to 'other' up to a scalar factor.
         """
-        if isinstance(other, NumberOp):
+        if isinstance(other, ModifiedNumOp):
             if self.i == other.i and self.s == other.s:
                 return True
         return False
@@ -840,140 +839,6 @@ class ZeroOp(HamiltonianOp):
         return 0
 
 
-class PauliOp(HamiltonianOp):
-    """
-    Identity Operator. i.e. c*I, c is coefficiency
-    """
-    def __init__(self,i: Sequence[int],cate: int, coeff: float) -> None:
-        super().__init__()
-        """
-        Category: 0-Identity, 1-pauliX, 2-i*pauliY, 3-pauliZ
-        """
-        assert cate in [0,1,2,3]
-        self.i = i
-        self.cate = cate
-        self.coeff = coeff
-    
-    def __neg__(self):
-        """
-        Logical negation.
-        """
-        return PauliOp(self.i, self.cate, -self.coeff)
-
-    def __rmul__(self, other):
-        """
-        Logical scalar product.
-        """
-        if not isinstance(other, (Rational, float)):
-            raise ValueError("expecting a scalar argument")
-        return PauliOp(self.i, self.cate, other*self.coeff)
-    
-    def __add__(self, other):
-        """
-        Logical sum.
-        """
-        if isinstance(other, ZeroOp):
-            return self
-        if not self.proportional(other):
-            raise ValueError("can only add another product operator with same factors")
-        return PauliOp(self.i, self.cate,self.coeff+other.coeff)
-    
-    def __sub__(self, other):
-        """
-        Logical difference.
-        """
-        return self+ (-other)
-    
-    def __str__(self) -> str:
-        c = "" if self.coeff ==1 else f"{self.coeff}"
-        match self.cate:
-            case 1:
-                lb = "X"
-            case 2:
-                lb = 'iY'
-            case 3:
-                lb = "Z"
-            case _:
-                lb = "Id"
-        return c+f"{lb}"
-    
-    def __eq__(self, other) -> bool:
-        """
-        Equality test.
-        """
-        return isinstance(other, PauliOp) and self.coeff==other.coeff
-    
-    def __lt__(self, other) -> bool:
-        """
-        "Less than" comparison, used for, e.g., sorting a sum of operators.
-        """
-        assert isinstance(other, HamiltonianOp)
-        if isinstance(other,ZeroOp):
-            return True
-        if isinstance(other, (HoppingOp, AntisymmHoppingOp, NumberOp, ModifiedNumOp, ProductOp, SumOp)):
-            return False
-        assert isinstance(other, PauliOp)
-        return self.coeff<other.coeff
-    
-    def proportional(self, other) -> bool:
-        """
-        Whether current operator is equal to 'other' up to a scalar factor.
-        """
-        if isinstance(other, PauliOp):
-            return self.cate == other.cate
-        return False
-    
-    def as_field_operator(self) -> FieldOp_FB:
-        """
-        TODO: Transfer the Identity Operator into field Op form
-        """
-        match self.cate:
-            case 1: # pauli X
-                op_list = [ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.BOSON_CREATE, self.i, 2)], self.coeff), 
-                ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.BOSON_ANNIHIL, self.i, 2)], self.coeff)]
-            case 2: # i*pauli Y
-                op_list = [ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.BOSON_CREATE, self.i, 2)], -self.coeff), 
-                ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.BOSON_ANNIHIL, self.i, 2)], self.coeff)]
-            case 3: # pauli Z
-                op_list = [ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.FERMI_MODNUM, self.i, 2)], -2.*self.coeff)]
-            case _: # Identity
-                raise RuntimeError("Identity operator should be emitted")
-        return FieldOp_FB(op_list)
-    
-    def support(self) -> list[tuple]:
-        """
-        TODO: To understand the meaning of this function
-        It should be just return the position and the spin acting by the operator
-        """
-        return [self.i + (2,)]
-
-    def translate(self, shift: Sequence[int]):
-        """
-        TODO: To understand the meaning of this function
-        move the position into correct representation of the lattice
-        """
-        return PauliOp(tuple(x + s for x, s in zip(self.i, shift)), self.cate, self.coeff)
-    
-    def normalize(self) -> tuple:
-        return PauliOp(self.i, self.cate,1.), self.coeff
-    
-    def is_zero(self) -> bool:
-        return self.coeff==0
-    
-    @property
-    def fermi_weight(self) -> int:
-        return 2
-    
-    @property
-    def mod(self) -> int:
-        return 1
-
-    def norm_bound(self) -> float:
-        return abs(self.coeff)
-    
-    def set_mod(self, mod:int):
-        return
-
 class ProductOp(HamiltonianOp):
     """
     Product of Hamiltonian operators.
@@ -982,6 +847,7 @@ class ProductOp(HamiltonianOp):
         self.ops = []
         self.coeff = coeff
         self.mod = 0
+        self.with_modified_num = False
         for op in ops:
             if op.is_zero():
                 self.ops = [ZeroOp()]
@@ -996,6 +862,8 @@ class ProductOp(HamiltonianOp):
                 opn, c = op.normalize()
                 self.ops.append(opn)
                 self.coeff *= c
+                if isinstance(op, ModifiedNumOp):
+                    self.with_modified_num = True
                 if opn.mod ==1:
                     self.mod = 1
         self.mod_sync()
@@ -1159,20 +1027,6 @@ class ProductOp(HamiltonianOp):
 
     def set_mod(self, mod:int = 0):
         assert mod in [0,1]
-        if mod == 0:
-            flag = False
-            for op in self.ops:
-                if isinstance(op,NumberOp):
-                    if op.s == 2:
-                        flag = True
-                if flag:
-                    break
-                flag = flag or isinstance(op, PauliOp)
-            if flag:
-                print("Bosonic operators exist, set mod as 1")
-                self.mod = 1
-                self.mod_sync()
-                return
         self.mod = mod
         self.mod_sync()
     
@@ -1182,9 +1036,32 @@ class ProductOp(HamiltonianOp):
 
     def is_numop_product(self) -> bool:
         """
-        Whether the operator is a product of number operators.
+        Whether the operator is a product of number operators, or modified number operators.
         """
-        return bool(self.ops) and all(isinstance(op, NumberOp) for op in self.ops)
+        return bool(self.ops) and all(isinstance(op, (NumberOp, ModifiedNumOp)) for op in self.ops)
+    
+    def check_mod_num(self) -> bool:
+        for op in self.ops:
+            if isinstance(op,ModifiedNumOp):
+                self.with_modified_num=True
+                return True
+        return False
+
+    def selfie_simplify(self) -> HamiltonianOp:
+        "To simplify the ProductOp if at least one ModifiedNumOp in it"
+        if not self.with_modified_num:
+            return self
+        if len(self.ops)==1:
+            return self.ops[0]
+        for i in range(len(self.ops)):
+            if isinstance(self.ops[i], ModifiedNumOp):
+                oplist = self.ops[0:i]
+                if i<len(self.ops)-1:
+                    oplist+=self.ops[i+1:-1]
+                return SumOp([ProductOp(oplist+[self.ops[i].Mod2Num()], coeff=self.coeff).selfie_simplify(),
+                              ProductOp(oplist, coeff=-.5*self.coeff).selfie_simplify()])
+    
+    
 
 
 class SumOp(HamiltonianOp):
@@ -1445,20 +1322,6 @@ class SumOp(HamiltonianOp):
     
     def set_mod(self, mod:int =0):
         assert mod in [0,1]
-        if mod ==0:
-            flag = False
-            for term in self.terms:
-                if isinstance(term,NumberOp):
-                    if term.s == 2:
-                        flag = True
-                if flag:
-                    break
-                flag = flag or isinstance(term, PauliOp)
-            if flag:
-                print("Bosonic operators exist, set mod as 1")
-                self.mod = 1
-                self.mod_sync()
-                return
         self.mod = mod
         self.mod_sync()
 
