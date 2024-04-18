@@ -838,6 +838,106 @@ class ZeroOp(HamiltonianOp):
         """
         return 0
 
+class BosonOp(HamiltonianOp):
+    def __init__(self, i:Sequence[int], boson_level:int, op_type:chr, coeff:float) -> None:
+        self.i = tuple(i)
+        assert boson_level>1
+        self.boson_level = boson_level
+        assert op_type in ['c', 'a']
+        self.op_type = op_type
+        self.coeff = coeff
+    
+    def __neg__(self):
+        """
+        Logical negation.
+        """
+        return BosonOp(self.i, self.boson_level, self.op_type, -self.coeff)
+
+    def __rmul__(self, other):
+        """
+        Logical scalar product.
+        """
+        if not isinstance(other, (Rational, float)):
+            raise ValueError("expecting a scalar argument")
+        return BosonOp(self.i, self.boson_level, self.op_type, other*self.coeff)
+    
+    def __add__(self, other):
+        """
+        Logical sum.
+        """
+        if isinstance(other, ZeroOp):
+            return self
+        if not self.proportional(other):
+            raise ValueError("can only add another number operator acting on same site")
+        return BosonOp(self.i, self.boson_level, self.op_type, self.coeff+other.coeff)
+    
+    def __sub__(self, other):
+        """
+        Logical difference.
+        """
+        return self+(-other)
+    
+    def __str__(self) -> str:
+        """
+        Represent the operator as a string.
+        """
+        c = "" if self.coeff == 1 else f"({self.coeff}) "
+        b = 'b' if self.op_type=='a' else 'b+'
+        return c + f"{self.op_type}_{{self.i}}"
+    
+    def __eq__(self, other) -> bool:
+        """
+        Equality test.
+        """
+        if isinstance(other, BosonOp):
+            if self.i==other.i and self.boson_level==other.boson_level and self.op_type==other.op_type and self.coeff==other.coeff:
+                return True
+        return False
+    
+    def __lt__(self, other) -> bool:
+        """
+        "Less than" comparison, used for, e.g., sorting a sum of operators.
+        """
+        assert isinstance(other, HamiltonianOp)
+        assert isinstance(other, HamiltonianOp)
+        if isinstance(other, (ProductOp, SumOp)):
+            return True
+        if isinstance(other, (ZeroOp, HoppingOp, AntisymmHoppingOp, NumberOp, ModifiedNumOp)):
+            return False
+        assert isinstance(other, BosonOp)
+        # lexicographical comparison
+        if self.op_type>other.op_type:
+            return True
+        return (self.i, self.coeff) < (other.i, other.coeff)
+    def proportional(self, other) -> bool:
+        if isinstance(other, BosonOp):
+            if self.i == other.i and self.op_type == other.op_type:
+                return True
+        return False
+    
+    def as_field_operator(self) -> FieldOp:
+        return super().as_field_operator()
+    
+    def support(self) -> list[tuple]:
+        return [self.i+(self.op_type,)]
+    
+    def translate(self, shift: Sequence[int]):
+        return BosonOp(tuple(x+s for x,s in zip(self.i, shift)), self.boson_level, self.op_type, self.coeff)
+    
+    def normalize(self) -> tuple:
+        if self.coeff==1:
+            return self, 1
+        return BosonOp(self.i,self.boson_level,self.op_type,1),self.coeff
+    
+    def is_zero(self) -> bool:
+        return self.coeff==0
+    
+    @property
+    def fermi_weight(self) -> int:
+        return 0
+    
+    def norm_bound(self) -> float:
+        return np.sqrt(sum(range(self.boson_level)))
 
 class ProductOp(HamiltonianOp):
     """
