@@ -541,7 +541,7 @@ def  construct_fermionic_operators(nmodes: int):
     return clist, alist, nlist, mlist
 
 @cache
-def  construct_Holstein_operators(nmodes: int):
+def  construct_Holstein_operators(nmodes: int, boson_level:int):
     """
     Generate sparse matrix representations of the fermionic creation and
     annihilation operators for `nmodes` modes (or sites),
@@ -551,6 +551,11 @@ def  construct_Holstein_operators(nmodes: int):
     I = sparse.identity(2)
     Z = sparse.csr_matrix([[ 1.,  0.], [ 0., -1.]])
     U = sparse.csr_matrix([[ 0.,  0.], [ 1.,  0.]])
+    BOSON_I = sparse.identity(boson_level)
+    CREATOR = np.zeros((boson_level,boson_level))
+    for i in range(1,boson_level):
+        CREATOR[i][i-1] = np.sqrt(i)
+    CREATOR = sparse.csr_matrix(CREATOR)
     clist = []
     mlist = [] # indeed 1/2 * -Z
     bclist = []
@@ -560,20 +565,27 @@ def  construct_Holstein_operators(nmodes: int):
         bc = sparse.identity(1)
         for j in range(nmodes):
             if j < i:
-                c = sparse.kron(c, I)
-                m = sparse.kron(m, I)
-                bc = sparse.kron(bc, I)
+                if j%3 ==2:
+                    c = sparse.kron(c, BOSON_I)
+                    m = sparse.kron(m, BOSON_I)
+                    bc = sparse.kron(bc, BOSON_I)
+                else:
+                    c = sparse.kron(c, I)
+                    m = sparse.kron(m, I)
+                    bc = sparse.kron(bc, I)
             elif j == i:
                 c = sparse.kron(c, U)
                 m = sparse.kron(m, Z)*(-.5)
-                bc = sparse.kron(bc, U)
+                bc = sparse.kron(bc, CREATOR)
             else:
                 if j%3==2:
                     c = sparse.kron(c, I)
+                    m = sparse.kron(m, BOSON_I)
+                    bc = sparse.kron(bc, BOSON_I)
                 else:
                     c = sparse.kron(c, Z)
-                m = sparse.kron(m, I)
-                bc = sparse.kron(bc, I)
+                    m = sparse.kron(m, I)
+                    bc = sparse.kron(bc, I)
         c = sparse.csr_matrix(c)
         m = sparse.csr_matrix(m)
         bc = sparse.csr_matrix(bc)
@@ -595,11 +607,16 @@ def  construct_Holstein_operators(nmodes: int):
     return clist, alist, nlist, mlist, bclist, balist
 
 @cache
-def construct_Holstein_operators_alt(nmodes_list):
+def construct_Holstein_operators_alt(nmodes_list, boson_level:int):
     nmodes_list = list(nmodes_list)
     I = sparse.identity(2)
     Z = sparse.csr_matrix([[ 1.,  0.], [ 0., -1.]])
     U = sparse.csr_matrix([[ 0.,  0.], [ 1.,  0.]])
+    CREATOR = np.zeros((boson_level,boson_level))
+    for i in range(1,boson_level):
+        CREATOR[i][i-1] = np.sqrt(i)
+    CREATOR = sparse.csr_matrix(CREATOR)
+    BOSON_I = sparse.identity(boson_level)
     clist = []
     mlist = [] # indeed 1/2 * -Z
     bclist = []
@@ -611,27 +628,25 @@ def construct_Holstein_operators_alt(nmodes_list):
         if nmodes_list[i] == 'b':
             for j in range(nmodes):
                 if j==i:
-                    c = sparse.kron(c, I)
-                    m = sparse.kron(m, Z)*(-.5)
-                    bc = sparse.kron(bc, U)
+                    bc = sparse.kron(bc, CREATOR)
+                elif nmodes[j]=='b':
+                    bc = sparse.kron(bc, BOSON_I)
                 else:
-                    c = sparse.kron(c, I)
-                    m = sparse.kron(m, I)
-                    bc = sparse.kron(bc, I)
+                    bc = sparse.kron(bc,I)
         else:
             for j in range(nmodes):
-                if j < i:
-                    c = sparse.kron(c, I)
-                    m = sparse.kron(m, I)
-                    bc = sparse.kron(bc, I)
-                elif j == i:
-                    c = sparse.kron(c, U)
-                    m = sparse.kron(m, Z)*(-.5)
-                    bc = sparse.kron(bc, I)
+                if nmodes[j]=='b':
+                    c = sparse.kron(c,BOSON_I)
+                    m = sparse.kron(m,BOSON_I)
+                elif j<i:
+                    c = sparse.kron(c,I)
+                    m = sparse.kron(m,I)
+                elif j>i:
+                    c = sparse.kron(c,Z)
+                    m = sparse.kron(m,I)
                 else:
-                    c = sparse.kron(c, Z)
-                    m = sparse.kron(m, I)
-                    bc = sparse.kron(bc, I)
+                    c = sparse.kron(c,U)
+                    m = sparse.kron(m, Z)*(-.5)
         c = sparse.csr_matrix(c)
         m = sparse.csr_matrix(m)
         bc = sparse.csr_matrix(bc)
