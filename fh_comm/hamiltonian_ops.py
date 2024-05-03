@@ -492,12 +492,7 @@ class NumberOp(HamiltonianOp):
         Represent the operator as a string.
         """
         c = "" if self.coeff == 1 else f"({self.coeff}) "
-        nt = 'up'
-        if self.s==1:
-            nt = 'dn'
-        elif self.s==2:
-            nt = 'bn'
-        return c + f"n_{{{self.i}, {nt}}}"
+        return c + f"n_{{{self.i}, {'up' if self.s == 0 else 'dn'}}}"
 
     def __eq__(self, other) -> bool:
         """
@@ -1151,13 +1146,16 @@ class ProductOp(HamiltonianOp):
         "To simplify the ProductOp if at least one ModifiedNumOp in it"
         if not self.with_modified_num:
             return self
+        """
         if len(self.ops)==1:
             return self.ops[0]
+            """
+        
         for i in range(len(self.ops)):
             if isinstance(self.ops[i], ModifiedNumOp):
                 oplist = self.ops[0:i]
                 if i<len(self.ops)-1:
-                    oplist+=self.ops[i+1:-1]
+                    oplist+=self.ops[i+1:]
                 return SumOp([ProductOp(oplist+[self.ops[i].Mod2Num()], coeff=self.coeff).selfie_simplify(),
                               ProductOp(oplist, coeff=-.5*self.coeff).selfie_simplify()])
     

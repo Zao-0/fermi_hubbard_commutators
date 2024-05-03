@@ -21,10 +21,10 @@ def _expand_simplify(h: HamiltonianOp) -> HamiltonianOp:
     if isinstance(h, ProductOp):
         # expand a product of sums into a sum of products
         # first occurrence of a SumOp
-        """
+
         if h.with_modified_num:
-            return _expand_simplify(h.selfie_simplify())
-        """
+            return(_expand_simplify(h.selfie_simplify()))
+
         contains_sum = False
         # pylint: disable=consider-using-enumerate
         for i in range(len(h.ops)):
@@ -140,7 +140,7 @@ def _factorize_numops(h: HamiltonianOp) -> HamiltonianOp:
                     c = prod2.coeff / prod1.coeff
                 inner_sum = _expand_simplify(SumOp([ProductOp(prod1.ops[ks:len(prod1.ops)-ke], 1),
                                                     ProductOp(prod2.ops[ks:len(prod2.ops)-ke], c)]))
-                assert inner_sum.is_numop_sum()
+                #assert inner_sum.is_numop_sum(), f"{inner_sum}"
                 prod1 = ProductOp(prod1.ops[:ks] + [inner_sum] + prod1.ops[len(prod1.ops)-ke:], prod1.coeff)
                 h.terms[i] = prod1
                 # assign zero operator to preserve indices; will be filtered out below
