@@ -833,28 +833,26 @@ class ZeroOp(HamiltonianOp):
         """
         return 0
 
-class BosonOp(HamiltonianOp):
-    def __init__(self, i:Sequence[int], boson_level:int, op_type:chr, coeff:float) -> None:
+class BosonNumOp(HamiltonianOp):
+    def __init__(self, i: Sequence[int], coeff:float, max_level:int) -> None:
         self.i = tuple(i)
-        assert boson_level>1
-        self.boson_level = boson_level
-        assert op_type in ['c', 'a']
-        self.op_type = op_type
         self.coeff = coeff
+        assert max_level>2
+        self.max_level = max_level
     
     def __neg__(self):
         """
         Logical negation.
         """
-        return BosonOp(self.i, self.boson_level, self.op_type, -self.coeff)
-
+        return BosonNumOp(self.i,-self.coeff, self.max_level)
+    
     def __rmul__(self, other):
         """
         Logical scalar product.
         """
         if not isinstance(other, (Rational, float)):
             raise ValueError("expecting a scalar argument")
-        return BosonOp(self.i, self.boson_level, self.op_type, other*self.coeff)
+        return BosonNumOp(self.i,other*self.coeff,self.max_level)
     
     def __add__(self, other):
         """
@@ -864,28 +862,27 @@ class BosonOp(HamiltonianOp):
             return self
         if not self.proportional(other):
             raise ValueError("can only add another number operator acting on same site")
-        return BosonOp(self.i, self.boson_level, self.op_type, self.coeff+other.coeff)
+        return BosonNumOp(self.i,self.coeff+other.coeff,self.max_level)
     
     def __sub__(self, other):
         """
         Logical difference.
         """
-        return self+(-other)
+        return self + (-other)
     
     def __str__(self) -> str:
         """
         Represent the operator as a string.
         """
         c = "" if self.coeff == 1 else f"({self.coeff}) "
-        b = 'b' if self.op_type=='a' else 'b+'
-        return c + f"{self.op_type}_{{self.i}}"
+        return c+f"Bn_{{self.i}}"
     
     def __eq__(self, other) -> bool:
         """
         Equality test.
         """
-        if isinstance(other, BosonOp):
-            if self.i==other.i and self.boson_level==other.boson_level and self.op_type==other.op_type and self.coeff==other.coeff:
+        if isinstance(other, BosonNumOp):
+            if self.i == other.i and self.coeff == other.coeff and self.max_level == other.max_level:
                 return True
         return False
     
@@ -894,45 +891,307 @@ class BosonOp(HamiltonianOp):
         "Less than" comparison, used for, e.g., sorting a sum of operators.
         """
         assert isinstance(other, HamiltonianOp)
-        assert isinstance(other, HamiltonianOp)
-        if isinstance(other, (ProductOp, SumOp)):
+        if isinstance(other, ( ,ProductOp, SumOp)):
             return True
         if isinstance(other, (ZeroOp, HoppingOp, AntisymmHoppingOp, NumberOp, ModifiedNumOp)):
             return False
-        assert isinstance(other, BosonOp)
-        # lexicographical comparison
-        if self.op_type>other.op_type:
-            return True
-        return (self.i, self.coeff) < (other.i, other.coeff)
+        assert isinstance(other, BosonNumOp)
+        return (self.i,self.coeff)<(other.i,other.coeff)
+
     def proportional(self, other) -> bool:
-        if isinstance(other, BosonOp):
-            if self.i == other.i and self.op_type == other.op_type:
+        """
+        Whether current operator is equal to 'other' up to a scalar factor.
+        """
+        if isinstance(other, BosonNumOp):
+            if self.i == other.i:
                 return True
         return False
     
     def as_field_operator(self) -> FieldOp:
-        return super().as_field_operator()
+        """
+        Represent the operator in terms of fermionic field operators.
+        TODO: To finish the function.
+        """
+        return None
     
     def support(self) -> list[tuple]:
-        return [self.i+(self.op_type,)]
+        """
+        Support of the operator: lattice sites which it acts on (including spin).
+        """
+        return [self.i + (2,)]
     
     def translate(self, shift: Sequence[int]):
-        return BosonOp(tuple(x+s for x,s in zip(self.i, shift)), self.boson_level, self.op_type, self.coeff)
+        """
+        Translate by `shift` and return the translated operator.
+        """
+        return BosonNumOp(tuple(x+s for x, s in zip(self.i, shift)), self.coeff, self.max_level)
     
     def normalize(self) -> tuple:
-        if self.coeff==1:
+        """
+        Return a normalized copy of the operator together with its scalar prefactor.
+        """
+        if self.coeff == 1:
             return self, 1
-        return BosonOp(self.i,self.boson_level,self.op_type,1),self.coeff
+        return BosonNumOp(self.i, 1, self.max_level), self.coeff
     
     def is_zero(self) -> bool:
-        return self.coeff==0
+        """
+        Indicate whether the operator acts as zero operator.
+        """
+        return self.coeff == 0
     
     @property
     def fermi_weight(self) -> int:
-        return 0
+        """
+        Maximum number of fermionic creation and annihilation operators multiplied together.
+        """
+        return 99
     
     def norm_bound(self) -> float:
-        return np.sqrt(sum(range(self.boson_level)))
+        """
+        Upper bound on the spectral norm of the operator.
+        """
+        return (self.max_level-1)*abs(self.coeff)
+    
+class BosonAddOp(HamiltonianOp):
+    def __init__(self, i: Sequence[int], coeff:float, max_level:int) -> None:
+        self.i = tuple(i)
+        self.coeff = coeff
+        assert max_level>2
+        self.max_level = max_level
+    
+    def __neg__(self):
+        """
+        Logical negation.
+        """
+        return BosonAddOp(self.i,-self.coeff, self.max_level)
+    
+    def __rmul__(self, other):
+        """
+        Logical scalar product.
+        """
+        if not isinstance(other, (Rational, float)):
+            raise ValueError("expecting a scalar argument")
+        return BosonAddOp(self.i,other*self.coeff,self.max_level)
+    
+    def __add__(self, other):
+        """
+        Logical sum.
+        """
+        if isinstance(other, ZeroOp):
+            return self
+        if not self.proportional(other):
+            raise ValueError("can only add another number operator acting on same site")
+        return BosonAddOp(self.i,self.coeff+other.coeff,self.max_level)
+    
+    def __sub__(self, other):
+        """
+        Logical difference.
+        """
+        return self + (-other)
+    
+    def __str__(self) -> str:
+        """
+        Represent the operator as a string.
+        """
+        c = "" if self.coeff == 1 else f"({self.coeff}) "
+        return c+f"Bn_{{self.i}}"
+    
+    def __eq__(self, other) -> bool:
+        """
+        Equality test.
+        """
+        if isinstance(other, BosonAddOp):
+            if self.i == other.i and self.coeff == other.coeff and self.max_level == other.max_level:
+                return True
+        return False
+    
+    def __lt__(self, other) -> bool:
+        """
+        "Less than" comparison, used for, e.g., sorting a sum of operators.
+        """
+        assert isinstance(other, HamiltonianOp)
+        if isinstance(other, ( ,ProductOp, SumOp)):
+            return True
+        if isinstance(other, (ZeroOp, HoppingOp, AntisymmHoppingOp, NumberOp, ModifiedNumOp)):
+            return False
+        assert isinstance(other, BosonAddOp)
+        return (self.i,self.coeff)<(other.i,other.coeff)
+
+    def proportional(self, other) -> bool:
+        """
+        Whether current operator is equal to 'other' up to a scalar factor.
+        """
+        if isinstance(other, BosonAddOp):
+            if self.i == other.i:
+                return True
+        return False
+    
+    def as_field_operator(self) -> FieldOp:
+        """
+        Represent the operator in terms of fermionic field operators.
+        TODO: To finish the function.
+        """
+        return None
+    
+    def support(self) -> list[tuple]:
+        """
+        Support of the operator: lattice sites which it acts on (including spin).
+        """
+        return [self.i + (2,)]
+    
+    def translate(self, shift: Sequence[int]):
+        """
+        Translate by `shift` and return the translated operator.
+        """
+        return BosonNumOp(tuple(x+s for x, s in zip(self.i, shift)), self.coeff, self.max_level)
+    
+    def normalize(self) -> tuple:
+        """
+        Return a normalized copy of the operator together with its scalar prefactor.
+        """
+        if self.coeff == 1:
+            return self, 1
+        return BosonAddOp(self.i, 1, self.max_level), self.coeff
+    
+    def is_zero(self) -> bool:
+        """
+        Indicate whether the operator acts as zero operator.
+        """
+        return self.coeff == 0
+    
+    @property
+    def fermi_weight(self) -> int:
+        """
+        Maximum number of fermionic creation and annihilation operators multiplied together.
+        """
+        return 99
+    
+    def norm_bound(self) -> float:
+        """
+        Upper bound on the spectral norm of the operator.
+        """
+        return (self.max_level-1)*abs(self.coeff)
+
+class BosonMinuOp(HamiltonianOp):
+    def __init__(self, i: Sequence[int], coeff:float, max_level:int) -> None:
+        self.i = tuple(i)
+        self.coeff = coeff
+        assert max_level>2
+        self.max_level = max_level
+    
+    def __neg__(self):
+        """
+        Logical negation.
+        """
+        return BosonMinuOp(self.i,-self.coeff, self.max_level)
+    
+    def __rmul__(self, other):
+        """
+        Logical scalar product.
+        """
+        if not isinstance(other, (Rational, float)):
+            raise ValueError("expecting a scalar argument")
+        return BosonMinuOp(self.i,other*self.coeff,self.max_level)
+    
+    def __add__(self, other):
+        """
+        Logical sum.
+        """
+        if isinstance(other, ZeroOp):
+            return self
+        if not self.proportional(other):
+            raise ValueError("can only add another number operator acting on same site")
+        return BosonMinuOp(self.i,self.coeff+other.coeff,self.max_level)
+    
+    def __sub__(self, other):
+        """
+        Logical difference.
+        """
+        return self + (-other)
+    
+    def __str__(self) -> str:
+        """
+        Represent the operator as a string.
+        """
+        c = "" if self.coeff == 1 else f"({self.coeff}) "
+        return c+f"Bn_{{self.i}}"
+    
+    def __eq__(self, other) -> bool:
+        """
+        Equality test.
+        """
+        if isinstance(other, BosonMinuOp):
+            if self.i == other.i and self.coeff == other.coeff and self.max_level == other.max_level:
+                return True
+        return False
+    
+    def __lt__(self, other) -> bool:
+        """
+        "Less than" comparison, used for, e.g., sorting a sum of operators.
+        """
+        assert isinstance(other, HamiltonianOp)
+        if isinstance(other, ( ,ProductOp, SumOp)):
+            return True
+        if isinstance(other, (ZeroOp, HoppingOp, AntisymmHoppingOp, NumberOp, ModifiedNumOp)):
+            return False
+        assert isinstance(other, BosonMinuOp)
+        return (self.i,self.coeff)<(other.i,other.coeff)
+
+    def proportional(self, other) -> bool:
+        """
+        Whether current operator is equal to 'other' up to a scalar factor.
+        """
+        if isinstance(other, BosonMinuOp):
+            if self.i == other.i:
+                return True
+        return False
+    
+    def as_field_operator(self) -> FieldOp:
+        """
+        Represent the operator in terms of fermionic field operators.
+        TODO: To finish the function.
+        """
+        return None
+    
+    def support(self) -> list[tuple]:
+        """
+        Support of the operator: lattice sites which it acts on (including spin).
+        """
+        return [self.i + (2,)]
+    
+    def translate(self, shift: Sequence[int]):
+        """
+        Translate by `shift` and return the translated operator.
+        """
+        return BosonMinuOp(tuple(x+s for x, s in zip(self.i, shift)), self.coeff, self.max_level)
+    
+    def normalize(self) -> tuple:
+        """
+        Return a normalized copy of the operator together with its scalar prefactor.
+        """
+        if self.coeff == 1:
+            return self, 1
+        return BosonMinuOp(self.i, 1, self.max_level), self.coeff
+    
+    def is_zero(self) -> bool:
+        """
+        Indicate whether the operator acts as zero operator.
+        """
+        return self.coeff == 0
+    
+    @property
+    def fermi_weight(self) -> int:
+        """
+        Maximum number of fermionic creation and annihilation operators multiplied together.
+        """
+        return 99
+    
+    def norm_bound(self) -> float:
+        """
+        Upper bound on the spectral norm of the operator.
+        """
+        return (self.max_level-1)*abs(self.coeff)
 
 class ProductOp(HamiltonianOp):
     """
