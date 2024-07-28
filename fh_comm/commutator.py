@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from fh_comm.lattice import SubLattice
-from fh_comm.hamiltonian_ops import HamiltonianOp, HoppingOp, AntisymmHoppingOp, NumberOp, ModifiedNumOp, ZeroOp, ProductOp, SumOp
+from fh_comm.hamiltonian_ops import HamiltonianOp, HoppingOp, AntisymmHoppingOp, NumberOp, ModifiedNumOp, ZeroOp, BosonNumOp, BosonAddOp, BosonMinuOp, ProductOp, SumOp
 
 
 def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
@@ -29,6 +29,8 @@ def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
             return _commutator_hopping_number(a, b)
         if isinstance(b, ModifiedNumOp):
             return _commutator_hopping_number(a, b.Mod2Num())
+        if isinstance(b, (BosonNumOp,BosonAddOp,BosonMinuOp)):
+            return ZeroOp()
         
     elif isinstance(a, AntisymmHoppingOp):
         if isinstance(b, HoppingOp):
@@ -40,6 +42,8 @@ def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
             return _commutator_antisymm_hopping_number(a, b)
         if isinstance(b, ModifiedNumOp):
             return _commutator_antisymm_hopping_number(a, b.Mod2Num())
+        if isinstance(b, (BosonNumOp,BosonAddOp,BosonMinuOp)):
+            return ZeroOp()
 
     elif isinstance(a, NumberOp):
         if isinstance(b, HoppingOp):
@@ -49,6 +53,8 @@ def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
             # pylint: disable=arguments-out-of-order
             return -_commutator_antisymm_hopping_number(b, a)
         if isinstance(b, (NumberOp, ModifiedNumOp)):
+            return ZeroOp()
+        if isinstance(b, (BosonNumOp,BosonAddOp,BosonMinuOp)):
             return ZeroOp()
 
     elif isinstance(a, ModifiedNumOp):
@@ -60,8 +66,42 @@ def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
             return -_commutator_antisymm_hopping_number(b, a.Mod2Num())
         if isinstance(b, (NumberOp, ModifiedNumOp)):
             return ZeroOp()
+        if isinstance(b, (BosonNumOp,BosonAddOp,BosonMinuOp)):
+            return ZeroOp()
+    
+    elif isinstance(a, BosonNumOp):
+        if isinstance(b, (HoppingOp,AntisymmHoppingOp,NumberOp,ModifiedNumOp)):
+            return ZeroOp()
+        if isinstance(b, BosonNumOp):
+            return ZeroOp()
+        if isinstance(b,BosonAddOp):
+            return _commutator_boson_num_add(a,b)
+        if isinstance(b,BosonMinuOp):
+            return _commutator_boson_num_minu(a,b)
+    
+    elif isinstance(a, BosonAddOp):
+        if isinstance(b,(HoppingOp,AntisymmHoppingOp,NumberOp,ModifiedNumOp)):
+            return ZeroOp()
+        if isinstance(b, BosonNumOp):
+            return -_commutator_boson_num_add(b,a)
+        if isinstance(b,BosonAddOp):
+            return ZeroOp()
+        if isinstance(b, BosonMinuOp):
+            return _commutator_boson_add_minu(a,b)
+    
+    elif isinstance(a, BosonMinuOp):
+        if isinstance(b,(HoppingOp,AntisymmHoppingOp,NumberOp,ModifiedNumOp)):
+            return ZeroOp()
+        if isinstance(b,BosonNumOp):
+            return -_commutator_boson_num_minu(b,a)
+        if isinstance(b,BosonAddOp):
+            return -_commutator_boson_add_minu(b,a)
+        if isinstance(b,BosonMinuOp):
+            return ZeroOp()
 
     # should never reach this point
+    print(f"type of a is {type(a)}")
+    print(f"type of b is {type(b)}")
     raise NotImplementedError()
 
 
@@ -170,6 +210,27 @@ def _commutator_antisymm_hopping_number(a: AntisymmHoppingOp, b: NumberOp) -> Ha
         return HoppingOp(a.i, a.j, a.s, a.coeff * b.coeff).standard_form()
     # operators act on disjoint sites
     return ZeroOp()
+
+def _commutator_boson_num_add(a:BosonNumOp,b:BosonAddOp) -> HamiltonianOp:
+    assert isinstance(a, BosonNumOp) and isinstance(b,BosonAddOp)
+    if a.i == b.i:
+        return BosonMinuOp(a.i, a.coeff*b.coeff, a.max_level)
+    else:
+        return ZeroOp()
+
+def _commutator_boson_num_minu(a:BosonNumOp, b:BosonMinuOp) -> HamiltonianOp:
+    assert isinstance(a, BosonNumOp) and isinstance(b,BosonMinuOp)
+    if a.i==b.i:
+        return BosonAddOp(a.i,a.coeff*b.coeff, a.max_level)
+    else:
+        return ZeroOp()
+
+def _commutator_boson_add_minu(a:BosonAddOp,b:BosonMinuOp) -> HamiltonianOp:
+    assert isinstance(a, BosonAddOp) and isinstance(b,BosonMinuOp)
+    if a.i==b.i:
+        return ProductOp([], 2*a.coeff*b.coeff)
+    else:
+        return ZeroOp()
 
 
 def commutator_translation(a: HamiltonianOp, b: HamiltonianOp, translatt: SubLattice) -> HamiltonianOp:
