@@ -576,7 +576,7 @@ class NumberOp(HamiltonianOp):
         """
         return abs(self.coeff)
 
-    def set_mod(self, mod:int = 1):
+    def set_mod(self, mod:int = 0):
         if self.s==2:
             self.mod = 1
             return
@@ -713,7 +713,7 @@ class ModifiedNumOp(HamiltonianOp):
         """
         return abs(self.coeff*0.5)
     
-    def set_mod(self, mod:int = 1):
+    def set_mod(self, mod:int = 0):
         if self.s==2:
             self.mod = 1
             return
@@ -839,6 +839,7 @@ class BosonNumOp(HamiltonianOp):
         self.coeff = coeff
         assert max_level>2
         self.max_level = max_level
+        self.mod=1
     
     def __neg__(self):
         """
@@ -875,7 +876,7 @@ class BosonNumOp(HamiltonianOp):
         Represent the operator as a string.
         """
         c = "" if self.coeff == 1 else f"({self.coeff}) "
-        return c+f"Bn_{{self.i}}"
+        return c+f"Bn_{self.i}"
     
     def __eq__(self, other) -> bool:
         """
@@ -891,7 +892,7 @@ class BosonNumOp(HamiltonianOp):
         "Less than" comparison, used for, e.g., sorting a sum of operators.
         """
         assert isinstance(other, HamiltonianOp)
-        if isinstance(other, ( ,ProductOp, SumOp)):
+        if isinstance(other, (BosonAddOp, BosonMinuOp, ProductOp, SumOp)):
             return True
         if isinstance(other, (ZeroOp, HoppingOp, AntisymmHoppingOp, NumberOp, ModifiedNumOp)):
             return False
@@ -912,7 +913,9 @@ class BosonNumOp(HamiltonianOp):
         Represent the operator in terms of fermionic field operators.
         TODO: To finish the function.
         """
-        return None
+        return FieldOp_FB([
+            ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.BOSON_CREATE,self.i,2),ElementaryFieldOp_FB(FieldOpType_FB.BOSON_ANNIHIL, self.i, 2)],self.coeff)
+        ])
     
     def support(self) -> list[tuple]:
         """
@@ -952,6 +955,9 @@ class BosonNumOp(HamiltonianOp):
         Upper bound on the spectral norm of the operator.
         """
         return (self.max_level-1)*abs(self.coeff)
+
+    def set_mod(self, mod: int):
+        return
     
 class BosonAddOp(HamiltonianOp):
     def __init__(self, i: Sequence[int], coeff:float, max_level:int) -> None:
@@ -959,6 +965,7 @@ class BosonAddOp(HamiltonianOp):
         self.coeff = coeff
         assert max_level>2
         self.max_level = max_level
+        self.mod=1
     
     def __neg__(self):
         """
@@ -995,7 +1002,7 @@ class BosonAddOp(HamiltonianOp):
         Represent the operator as a string.
         """
         c = "" if self.coeff == 1 else f"({self.coeff}) "
-        return c+f"Bn_{{self.i}}"
+        return c+f"Bn_{self.i}"
     
     def __eq__(self, other) -> bool:
         """
@@ -1011,9 +1018,9 @@ class BosonAddOp(HamiltonianOp):
         "Less than" comparison, used for, e.g., sorting a sum of operators.
         """
         assert isinstance(other, HamiltonianOp)
-        if isinstance(other, ( ,ProductOp, SumOp)):
+        if isinstance(other, (BosonMinuOp ,ProductOp, SumOp)):
             return True
-        if isinstance(other, (ZeroOp, HoppingOp, AntisymmHoppingOp, NumberOp, ModifiedNumOp)):
+        if isinstance(other, (ZeroOp, HoppingOp, AntisymmHoppingOp, NumberOp, ModifiedNumOp, BosonNumOp)):
             return False
         assert isinstance(other, BosonAddOp)
         return (self.i,self.coeff)<(other.i,other.coeff)
@@ -1032,7 +1039,10 @@ class BosonAddOp(HamiltonianOp):
         Represent the operator in terms of fermionic field operators.
         TODO: To finish the function.
         """
-        return None
+        return FieldOp_FB([
+            ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.BOSON_CREATE,self.i,2)],self.coeff),
+            ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.BOSON_ANNIHIL,self.i,2)],self.coeff)
+        ])
     
     def support(self) -> list[tuple]:
         """
@@ -1072,6 +1082,9 @@ class BosonAddOp(HamiltonianOp):
         Upper bound on the spectral norm of the operator.
         """
         return (self.max_level-1)*abs(self.coeff)
+    
+    def set_mod(self, mod: int):
+        return
 
 class BosonMinuOp(HamiltonianOp):
     def __init__(self, i: Sequence[int], coeff:float, max_level:int) -> None:
@@ -1079,6 +1092,7 @@ class BosonMinuOp(HamiltonianOp):
         self.coeff = coeff
         assert max_level>2
         self.max_level = max_level
+        self.mod=1
     
     def __neg__(self):
         """
@@ -1115,7 +1129,7 @@ class BosonMinuOp(HamiltonianOp):
         Represent the operator as a string.
         """
         c = "" if self.coeff == 1 else f"({self.coeff}) "
-        return c+f"Bn_{{self.i}}"
+        return c+f"Bn_{self.i}"
     
     def __eq__(self, other) -> bool:
         """
@@ -1131,9 +1145,9 @@ class BosonMinuOp(HamiltonianOp):
         "Less than" comparison, used for, e.g., sorting a sum of operators.
         """
         assert isinstance(other, HamiltonianOp)
-        if isinstance(other, ( ,ProductOp, SumOp)):
+        if isinstance(other, (ProductOp, SumOp)):
             return True
-        if isinstance(other, (ZeroOp, HoppingOp, AntisymmHoppingOp, NumberOp, ModifiedNumOp)):
+        if not isinstance(other, (BosonMinuOp, ProductOp, SumOp)):
             return False
         assert isinstance(other, BosonMinuOp)
         return (self.i,self.coeff)<(other.i,other.coeff)
@@ -1152,7 +1166,10 @@ class BosonMinuOp(HamiltonianOp):
         Represent the operator in terms of fermionic field operators.
         TODO: To finish the function.
         """
-        return None
+        return FieldOp_FB([
+            ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.BOSON_CREATE,self.i,2)],self.coeff),
+            ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.BOSON_ANNIHIL,self.i,2)],-self.coeff)
+        ])
     
     def support(self) -> list[tuple]:
         """
@@ -1192,6 +1209,9 @@ class BosonMinuOp(HamiltonianOp):
         Upper bound on the spectral norm of the operator.
         """
         return (self.max_level-1)*abs(self.coeff)
+    
+    def set_mod(self, mod: int):
+        return
 
 class ProductOp(HamiltonianOp):
     """
@@ -1418,7 +1438,15 @@ class ProductOp(HamiltonianOp):
                 return SumOp([ProductOp(oplist+[self.ops[i].Mod2Num()], coeff=self.coeff).selfie_simplify(),
                               ProductOp(oplist, coeff=-.5*self.coeff).selfie_simplify()])
     
-    
+    def remove_high_order_numop(self):
+        temp_list = []
+        for op in self.ops:
+            if op not in temp_list:
+                temp_list.append(op)
+            else:
+                if not isinstance(op, NumberOp):
+                    temp_list.append(op)
+        self.ops = temp_list
 
 
 class SumOp(HamiltonianOp):
