@@ -27,6 +27,7 @@ class FieldOpType_FB(enum.Enum):
     FERMI_MODNUM = 3    # fermionic/bosonic number operator (modified) i.e. n_i-1/2
     BOSON_CREATE = 4    # bosonic creation operator
     BOSON_ANNIHIL = 5   # bosonic annihilation operator
+    BOSON_NUMBER = 6
 
 class ElementaryFieldOp:
     """
@@ -331,8 +332,10 @@ class FieldOp_FB(FieldOp):
     """
     Sum of products of fermionic-bosonic field operators.
     """
-    def __init__(self, terms: Sequence[ProductFieldOp_FB]):
+    def __init__(self, terms: Sequence[ProductFieldOp_FB], N:int):
         self.terms = list(terms)
+        assert N>1
+        self.N = N
     
     def as_matrix(self, latt_shape: Sequence[int], translatt: SubLattice = None):
         # num of lattice sites
@@ -341,8 +344,8 @@ class FieldOp_FB(FieldOp):
         L = 3* math.prod(latt_shape)
         if not self.terms:
             # fast-return zero matrix if terms are empty
-            return sparse.csr_matrix((2**L, 2**L))
-        clist, alist, nlist, mlist, bclist, balist = construct_Holstein_operators(L)
+            return sparse.csr_matrix((2**(2*latt_shape)*self.N**latt_shape, 2**(2*latt_shape)*self.N**latt_shape))
+        clist, alist, nlist, mlist, bclist, balist = construct_Holstein_operators(L,N)
         mat = 0
         if translatt is None:
             tps = [len(latt_shape) * (0,)]
@@ -403,8 +406,9 @@ class FieldOp_FB(FieldOp):
         clist, alist, nlist, mlist, bclist, balist = construct_Holstein_operators_alt(modes_list)
         # construct matrix representation
         mat = 0
+        numf, numb = get_particles(modes_list)
         for term in self.terms:
-            fstring = sparse.identity(2**L)
+            fstring = sparse.identity(2**numf*self.N**numb)
             for op in term.ops:
                 # take spin into account for indexing
                 j = supp.index(op.i + (op.s,))
@@ -664,3 +668,13 @@ def construct_Holstein_operators_alt(nmodes_list, boson_level:int):
         data = [1. if (n & f == f) else 0. for n in range(2**nmodes)]
         nlist.append(sparse.dia_matrix((data, 0), 2*(2**nmodes,)))
     return clist, alist, nlist, mlist, bclist, balist
+
+def get_particles(modes_list):
+    nf = 0
+    nb = 0
+    for c in modes_list:
+        if c=='b':
+            nb+=1
+        else:
+            nf+=1
+    return nf, nb
