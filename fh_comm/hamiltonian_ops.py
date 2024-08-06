@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from warnings import warn
 import numpy as np
 from fh_comm.field_ops import FieldOpType, ElementaryFieldOp, ProductFieldOp, FieldOp, FieldOpType_FB, ElementaryFieldOp_FB, ProductFieldOp_FB, FieldOp_FB
-
+from scipy.sparse.linalg import norm as compute_norm 
 
 @total_ordering
 class HamiltonianOp(abc.ABC):
@@ -134,6 +134,7 @@ class HoppingOp(HamiltonianOp):
         self.coeff = coeff
         assert mod in [0,1]
         self.mod = mod
+        self.max_level = 0
 
     def __neg__(self):
         """
@@ -217,7 +218,7 @@ class HoppingOp(HamiltonianOp):
             ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.FERMI_CREATE, self.i, self.s),
                                ElementaryFieldOp_FB(FieldOpType_FB.FERMI_ANNIHIL, self.j, self.s)], self.coeff),
             ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.FERMI_CREATE, self.j, self.s),
-                               ElementaryFieldOp_FB(FieldOpType_FB.FERMI_ANNIHIL, self.i, self.s)], self.coeff)])
+                               ElementaryFieldOp_FB(FieldOpType_FB.FERMI_ANNIHIL, self.i, self.s)], self.coeff)],self.max_level)
 
     def support(self) -> list[tuple]:
         """
@@ -294,6 +295,7 @@ class AntisymmHoppingOp(HamiltonianOp):
         self.coeff = coeff
         assert mod in [0,1]
         self.mod = mod
+        self.max_level = 0
 
     def __neg__(self):
         """
@@ -377,7 +379,7 @@ class AntisymmHoppingOp(HamiltonianOp):
             ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.FERMI_CREATE,  self.i, self.s),
                             ElementaryFieldOp_FB(FieldOpType_FB.FERMI_ANNIHIL, self.j, self.s)],  self.coeff),
             ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.FERMI_CREATE,  self.j, self.s),
-                            ElementaryFieldOp_FB(FieldOpType_FB.FERMI_ANNIHIL, self.i, self.s)], -self.coeff)])
+                            ElementaryFieldOp_FB(FieldOpType_FB.FERMI_ANNIHIL, self.i, self.s)], -self.coeff)],self.max_level)
 
     def support(self) -> list[tuple]:
         """
@@ -456,6 +458,7 @@ class NumberOp(HamiltonianOp):
             self.mod=1
         else:
             self.mod = mod
+        self.max_level = 0
 
     def __neg__(self):
         """
@@ -535,7 +538,7 @@ class NumberOp(HamiltonianOp):
                 ElementaryFieldOp(FieldOpType.FERMI_NUMBER, self.i, self.s)], self.coeff)])
         return FieldOp_FB([
             ProductFieldOp_FB([
-                ElementaryFieldOp_FB(FieldOpType_FB.FERMI_NUMBER, self.i, self.s)], self.coeff)])
+                ElementaryFieldOp_FB(FieldOpType_FB.FERMI_NUMBER, self.i, self.s)], self.coeff)],self.max_level)
 
     def support(self) -> list[tuple]:
         """
@@ -672,7 +675,7 @@ class ModifiedNumOp(HamiltonianOp):
                 ElementaryFieldOp(FieldOpType.FERMI_MODNUM, self.i, self.s)], self.coeff)])
         return FieldOp_FB([
             ProductFieldOp_FB([
-                ElementaryFieldOp_FB(FieldOpType_FB.FERMI_MODNUM, self.i, self.s)], self.coeff)])
+                ElementaryFieldOp_FB(FieldOpType_FB.FERMI_MODNUM, self.i, self.s)], self.coeff)],1)
 
     def support(self) -> list[tuple]:
         """
@@ -914,8 +917,8 @@ class BosonNumOp(HamiltonianOp):
         TODO: To finish the function.
         """
         return FieldOp_FB([
-            ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.BOSON_CREATE,self.i,2),ElementaryFieldOp_FB(FieldOpType_FB.BOSON_ANNIHIL, self.i, 2)],self.coeff)
-        ])
+            ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.BOSON_NUMBER,self.i,2)],self.coeff)
+        ],self.max_level)
     
     def support(self) -> list[tuple]:
         """
@@ -1042,7 +1045,7 @@ class BosonAddOp(HamiltonianOp):
         return FieldOp_FB([
             ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.BOSON_CREATE,self.i,2)],self.coeff),
             ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.BOSON_ANNIHIL,self.i,2)],self.coeff)
-        ])
+        ],self.max_level)
     
     def support(self) -> list[tuple]:
         """
@@ -1222,6 +1225,7 @@ class ProductOp(HamiltonianOp):
         self.coeff = coeff
         self.mod = 0
         self.with_modified_num = False
+        self.max_level = 0
         for op in ops:
             if op.is_zero():
                 self.ops = [ZeroOp()]
@@ -1241,6 +1245,8 @@ class ProductOp(HamiltonianOp):
                 if opn.mod ==1:
                     self.mod = 1
         self.mod_sync()
+        if self.mod==1:
+            self.max_level_sync()
 
     def __neg__(self):
         """
@@ -1447,6 +1453,18 @@ class ProductOp(HamiltonianOp):
                 if not isinstance(op, NumberOp):
                     temp_list.append(op)
         self.ops = temp_list
+    
+    def max_level_sync(self):
+        for op in self.ops:
+            if self.max_level<op.max_level:
+                self.max_level = op.max_level 
+        self.set_max_level(self.max_level)
+    
+    def set_max_level(self,N):
+        self.max_level = N
+        for op in self.ops:
+            if not isinstance(op,ZeroOp):
+                op.max_level = self.max_level
 
 
 class SumOp(HamiltonianOp):
@@ -1456,6 +1474,7 @@ class SumOp(HamiltonianOp):
     def __init__(self, terms: Sequence[HamiltonianOp]):
         self.terms = []
         self.mod = 0
+        self.max_level = 0
         for term in terms:
             # filter out zero operators
             if term.is_zero():
@@ -1463,6 +1482,8 @@ class SumOp(HamiltonianOp):
             # flatten nested sums
             if isinstance(term, SumOp):
                 self.terms += term.terms
+                if self.max_level<term.max_level:
+                    self.max_level = term.max_level
                 if term.mod ==1:
                     self.mod = 1
             else:
@@ -1471,6 +1492,8 @@ class SumOp(HamiltonianOp):
                     self.mod = 1
         self.terms = sorted(self.terms)
         self.mod_sync()
+        if self.mod==1:
+            self.max_level_sync()
 
     def __neg__(self):
         """
@@ -1559,7 +1582,7 @@ class SumOp(HamiltonianOp):
         """
         s = FieldOp([])
         if self.mod ==1:
-            s = FieldOp_FB([])
+            s = FieldOp_FB([], self.max_level)
         for term in self.terms:
             s += term.as_field_operator()
         return s
@@ -1609,6 +1632,8 @@ class SumOp(HamiltonianOp):
         if nmodes <= HamiltonianOp.max_nmodes_exact_norm:
             # compute exact norm
             cmt = self.as_field_operator().as_compact_matrix()
+            if self.mod == 1:
+                return  compute_norm(cmt,ord='fro')
             return _spectral_norm_conserved_particles(nmodes, cmt)
 
         if self.is_quadratic_sum():
@@ -1713,6 +1738,20 @@ class SumOp(HamiltonianOp):
     def mod_sync(self):
         for term in self.terms:
             term.set_mod(self.mod)
+        return
+
+    def max_level_sync(self):
+        for op in self.terms:
+            if self.max_level<op.max_level:
+                self.max_level = op.max_level 
+        self.set_max_level(self.max_level)
+    
+    def set_max_level(self,N):
+        self.max_level = N
+        for op in self.terms:
+            if not isinstance(op,ZeroOp):
+                op.max_level = self.max_level
+    
 
 def _spectral_norm_conserved_particles(nmodes: int, op):
     """
