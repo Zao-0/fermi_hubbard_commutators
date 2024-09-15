@@ -115,6 +115,12 @@ class HamiltonianOp(abc.ABC):
         0 ---- Fermi-only model
         1 ---- Fermi-Bosonic interaction model
         """
+    
+    @abc.abstractmethod
+    def set_max_level(self,N):
+        """
+        set the max level for Bosonic op
+        """
     # maximum number of modes defining matrix dimension
     # for which the exact spectral norm can be computed
     max_nmodes_exact_norm = 14
@@ -125,7 +131,7 @@ class HoppingOp(HamiltonianOp):
     Hopping term :math:`a^{\dagger}_{i\sigma} a_{j\sigma} + h.c.`
     between sites `i` and `j` with spin `s`.
     """
-    def __init__(self, i: Sequence[int], j: Sequence[int], s: int, coeff: float, mod:int = 0):
+    def __init__(self, i: Sequence[int], j: Sequence[int], s: int, coeff: float, mod:int = 0, max_level=0):
         self.i = tuple(i)
         self.j = tuple(j)
         assert self.i != self.j
@@ -134,13 +140,13 @@ class HoppingOp(HamiltonianOp):
         self.coeff = coeff
         assert mod in [0,1]
         self.mod = mod
-        self.max_level = 0
+        self.max_level = max_level
 
     def __neg__(self):
         """
         Logical negation.
         """
-        return HoppingOp(self.i, self.j, self.s, -self.coeff, self.mod)
+        return HoppingOp(self.i, self.j, self.s, -self.coeff, self.mod,self.max_level)
 
     def __rmul__(self, other):
         """
@@ -148,7 +154,7 @@ class HoppingOp(HamiltonianOp):
         """
         if not isinstance(other, (Rational, float)):
             raise ValueError("expecting a scalar argument")
-        return HoppingOp(self.i, self.j, self.s, other * self.coeff, self.mod)
+        return HoppingOp(self.i, self.j, self.s, other * self.coeff, self.mod,self.max_level)
 
     def __add__(self, other):
         """
@@ -158,7 +164,7 @@ class HoppingOp(HamiltonianOp):
             return self
         if not self.proportional(other):
             raise ValueError("can only add another hopping term acting on same sites")
-        return HoppingOp(self.i, self.j, self.s, self.coeff + other.coeff, self.mod)
+        return HoppingOp(self.i, self.j, self.s, self.coeff + other.coeff, self.mod, self.max_level)
 
     def __sub__(self, other):
         """
@@ -187,7 +193,7 @@ class HoppingOp(HamiltonianOp):
         "Less than" comparison, used for, e.g., sorting a sum of operators.
         """
         assert isinstance(other, HamiltonianOp)
-        if isinstance(other, (AntisymmHoppingOp, NumberOp, ModifiedNumOp, ProductOp, SumOp)):
+        if isinstance(other, (AntisymmHoppingOp, NumberOp, ProductOp, SumOp)):
             return True
         if isinstance(other, ZeroOp):
             return False
@@ -232,7 +238,7 @@ class HoppingOp(HamiltonianOp):
         """
         return HoppingOp(tuple(x + s for x, s in zip(self.i, shift)),
                          tuple(x + s for x, s in zip(self.j, shift)),
-                         self.s, self.coeff, self.mod)
+                         self.s, self.coeff, self.mod, self.max_level)
 
     def normalize(self) -> tuple:
         """
@@ -240,7 +246,7 @@ class HoppingOp(HamiltonianOp):
         """
         if self.coeff == 1:
             return self, 1
-        return HoppingOp(self.i, self.j, self.s, 1, self.mod), self.coeff
+        return HoppingOp(self.i, self.j, self.s, 1, self.mod,self.max_level), self.coeff
 
     def is_zero(self) -> bool:
         """
@@ -265,7 +271,7 @@ class HoppingOp(HamiltonianOp):
         """
         Interchange i <-> j, resulting in logically the same operator.
         """
-        return HoppingOp(self.j, self.i, self.s, self.coeff, self.mod)
+        return HoppingOp(self.j, self.i, self.s, self.coeff, self.mod, self.max_level)
 
     def standard_form(self):
         """
@@ -280,13 +286,16 @@ class HoppingOp(HamiltonianOp):
         assert mod in [0,1]
         self.mod = mod
 
+    def set_max_level(self,N):
+        self.max_level=N
+        return
 
 class AntisymmHoppingOp(HamiltonianOp):
     r"""
     Anti-symmetric hopping term :math:`a^{\dagger}_{i\sigma} a_{j\sigma} - h.c.`
     between sites `i` and `j` with spin `s`.
     """
-    def __init__(self, i: Sequence[int], j: Sequence[int], s: int, coeff: float, mod:int = 0):
+    def __init__(self, i: Sequence[int], j: Sequence[int], s: int, coeff: float, mod:int = 0, max_level=0):
         self.i = tuple(i)
         self.j = tuple(j)
         assert self.i != self.j
@@ -295,13 +304,13 @@ class AntisymmHoppingOp(HamiltonianOp):
         self.coeff = coeff
         assert mod in [0,1]
         self.mod = mod
-        self.max_level = 0
+        self.max_level = max_level
 
     def __neg__(self):
         """
         Logical negation.
         """
-        return AntisymmHoppingOp(self.i, self.j, self.s, -self.coeff, self.mod)
+        return AntisymmHoppingOp(self.i, self.j, self.s, -self.coeff, self.mod, self.max_level)
 
     def __rmul__(self, other):
         """
@@ -309,7 +318,7 @@ class AntisymmHoppingOp(HamiltonianOp):
         """
         if not isinstance(other, (Rational, float)):
             raise ValueError("expecting a scalar argument")
-        return AntisymmHoppingOp(self.i, self.j, self.s, other * self.coeff, self.mod)
+        return AntisymmHoppingOp(self.i, self.j, self.s, other * self.coeff, self.mod, self.max_level)
 
     def __add__(self, other):
         """
@@ -319,7 +328,7 @@ class AntisymmHoppingOp(HamiltonianOp):
             return self
         if not self.proportional(other):
             raise ValueError("can only add another anti-symmetric hopping term acting on same sites")
-        return AntisymmHoppingOp(self.i, self.j, self.s, self.coeff + other.coeff, self.mod)
+        return AntisymmHoppingOp(self.i, self.j, self.s, self.coeff + other.coeff, self.mod, self.max_level)
 
     def __sub__(self, other):
         """
@@ -348,7 +357,7 @@ class AntisymmHoppingOp(HamiltonianOp):
         "Less than" comparison, used for, e.g., sorting a sum of operators.
         """
         assert isinstance(other, HamiltonianOp)
-        if isinstance(other, (NumberOp, ModifiedNumOp, ProductOp, SumOp)):
+        if isinstance(other, (NumberOp, ProductOp, SumOp)):
             return True
         if isinstance(other, (ZeroOp, HoppingOp)):
             return False
@@ -393,7 +402,7 @@ class AntisymmHoppingOp(HamiltonianOp):
         """
         return AntisymmHoppingOp(tuple(x + s for x, s in zip(self.i, shift)),
                                  tuple(x + s for x, s in zip(self.j, shift)),
-                                 self.s, self.coeff, self.mod)
+                                 self.s, self.coeff, self.mod, self.max_level)
 
     def normalize(self) -> tuple:
         """
@@ -401,7 +410,7 @@ class AntisymmHoppingOp(HamiltonianOp):
         """
         if self.coeff == 1:
             return self, 1
-        return AntisymmHoppingOp(self.i, self.j, self.s, 1, self.mod), self.coeff
+        return AntisymmHoppingOp(self.i, self.j, self.s, 1, self.mod, self.max_level), self.coeff
 
     def is_zero(self) -> bool:
         """
@@ -426,7 +435,7 @@ class AntisymmHoppingOp(HamiltonianOp):
         """
         Interchange i <-> j and flip sign, resulting in logically the same operator.
         """
-        return AntisymmHoppingOp(self.j, self.i, self.s, -self.coeff, self.mod)
+        return AntisymmHoppingOp(self.j, self.i, self.s, -self.coeff, self.mod, self.max_level)
 
     def standard_form(self):
         """
@@ -440,6 +449,10 @@ class AntisymmHoppingOp(HamiltonianOp):
     def set_mod(self, mod:int = 0):
         assert mod in [0,1]
         self.mod = mod
+    
+    def set_max_level(self,N):
+        self.max_level = N
+        return
 
 
 class NumberOp(HamiltonianOp):
@@ -448,7 +461,7 @@ class NumberOp(HamiltonianOp):
     s = 0 ----- spin up
     s = 1 ----- spin down
     """
-    def __init__(self, i: Sequence[int], s: int, coeff: float, mod:int =0):
+    def __init__(self, i: Sequence[int], s: int, coeff: float, mod:int =0, max_level=0):
         self.i = tuple(i)
         assert s in [0, 1]
         self.s = s
@@ -458,7 +471,7 @@ class NumberOp(HamiltonianOp):
             self.mod=1
         else:
             self.mod = mod
-        self.max_level = 0
+        self.max_level = max_level
 
     def __neg__(self):
         """
@@ -472,7 +485,7 @@ class NumberOp(HamiltonianOp):
         """
         if not isinstance(other, (Rational, float)):
             raise ValueError("expecting a scalar argument")
-        return NumberOp(self.i, self.s, other * self.coeff, self.mod)
+        return NumberOp(self.i, self.s, other * self.coeff, self.mod, self.max_level)
 
     def __add__(self, other):
         """
@@ -482,7 +495,7 @@ class NumberOp(HamiltonianOp):
             return self
         if not self.proportional(other):
             raise ValueError("can only add another number operator acting on same site")
-        return NumberOp(self.i, self.s, self.coeff + other.coeff, self.mod)
+        return NumberOp(self.i, self.s, self.coeff + other.coeff, self.mod,self.max_level)
 
     def __sub__(self, other):
         """
@@ -511,7 +524,7 @@ class NumberOp(HamiltonianOp):
         "Less than" comparison, used for, e.g., sorting a sum of operators.
         """
         assert isinstance(other, HamiltonianOp)
-        if isinstance(other, (ModifiedNumOp,ProductOp, SumOp)):
+        if isinstance(other, (ProductOp, SumOp, BosonAddOp,BosonMinuOp,BosonNumOp)):
             return True
         if isinstance(other, (ZeroOp, HoppingOp, AntisymmHoppingOp)):
             return False
@@ -550,7 +563,7 @@ class NumberOp(HamiltonianOp):
         """
         Translate by `shift` and return the translated operator.
         """
-        return NumberOp(tuple(x + s for x, s in zip(self.i, shift)), self.s, self.coeff, self.mod)
+        return NumberOp(tuple(x + s for x, s in zip(self.i, shift)), self.s, self.coeff, self.mod,self.max_level)
 
     def normalize(self) -> tuple:
         """
@@ -558,7 +571,7 @@ class NumberOp(HamiltonianOp):
         """
         if self.coeff == 1:
             return self, 1
-        return NumberOp(self.i, self.s, 1, self.mod), self.coeff
+        return NumberOp(self.i, self.s, 1, self.mod,self.max_level), self.coeff
 
     def is_zero(self) -> bool:
         """
@@ -586,146 +599,9 @@ class NumberOp(HamiltonianOp):
         assert mod in [0,1]
         self.mod = mod
 
-class ModifiedNumOp(HamiltonianOp):
-    """
-    Number operator :math:`n_{i\sigma}-Identity/2`.
-    """
-    def __init__(self,i:Sequence[int], s:int, coeff:float, mod:int =0) -> None:
-        self.i = tuple(i)
-        assert s in [0, 1]
-        self.s = s
-        self.coeff = coeff
-        self.mod = mod
-    
-    def __neg__(self):
-        """
-        Logical negation.
-        """
-        return ModifiedNumOp(self.i, self.s, -self.coeff, self.mod)
-    
-    def __rmul__(self, other):
-        """
-        Logical scalar product.
-        """
-        if not isinstance(other, (Rational, float)):
-            raise ValueError("expecting a scalar argument")
-        return ModifiedNumOp(self.i, self.s, other * self.coeff, self.mod)
-
-    def __add__(self, other):
-        """
-        Logical sum.
-        """
-        if isinstance(other, ZeroOp):
-            return self
-        if not self.proportional(other):
-            raise ValueError("can only add another number operator acting on same site")
-        return ModifiedNumOp(self.i, self.s, self.coeff + other.coeff, self.mod)
-
-    def __sub__(self, other):
-        """
-        Logical difference.
-        """
-        return self + (-other)
-
-    def __str__(self) -> str:
-        """
-        Represent the operator as a string.
-        """
-        c = "" if self.coeff == 1 else f"({self.coeff}) "
-        return c + f"Mn_{{{self.i}, {'up' if self.s == 0 else 'dn'}}}"
-
-    def __eq__(self, other) -> bool:
-        """
-        Equality test.
-        """
-        if isinstance(other, ModifiedNumOp):
-            if self.i == other.i and self.s == other.s and self.coeff == other.coeff:
-                return True
-        return False
-
-    def __lt__(self, other) -> bool:
-        """
-        "Less than" comparison, used for, e.g., sorting a sum of operators.
-        """
-        assert isinstance(other, HamiltonianOp)
-        if isinstance(other, (ProductOp, SumOp)):
-            return True
-        if isinstance(other, (ZeroOp, HoppingOp, AntisymmHoppingOp, NumberOp)):
-            return False
-        assert isinstance(other, ModifiedNumOp)
-        # lexicographical comparison
-        return (self.s, self.i, self.coeff) < (other.s, other.i, other.coeff)
-
-    def proportional(self, other) -> bool:
-        """
-        Whether current operator is equal to 'other' up to a scalar factor.
-        """
-        if isinstance(other, ModifiedNumOp):
-            if self.i == other.i and self.s == other.s:
-                return True
-        return False
-
-    def as_field_operator(self) -> FieldOp:
-        """
-        TODO: the function need to be modified
-        """
-        if self.mod ==0:
-            return FieldOp([
-            ProductFieldOp([
-                ElementaryFieldOp(FieldOpType.FERMI_MODNUM, self.i, self.s)], self.coeff)])
-        return FieldOp_FB([
-            ProductFieldOp_FB([
-                ElementaryFieldOp_FB(FieldOpType_FB.FERMI_MODNUM, self.i, self.s)], self.coeff)],1)
-
-    def support(self) -> list[tuple]:
-        """
-        TODO: Need to undertand the function
-        """
-        return [self.i + (self.s,)]
-
-    def translate(self, shift: Sequence[int]):
-        """
-        Translate by `shift` and return the translated operator.
-        """
-        return ModifiedNumOp(tuple(x + s for x, s in zip(self.i, shift)), self.s, self.coeff, self.mod)
-
-    def normalize(self) -> tuple:
-        """
-        Return a normalized copy of the operator together with its scalar prefactor.
-        """
-        if self.coeff == 1:
-            return self, 1
-        return ModifiedNumOp(self.i, self.s, 1, self.mod), self.coeff
-
-    def is_zero(self) -> bool:
-        """
-        Indicate whether the operator acts as zero operator.
-        """
-        return self.coeff == 0
-
-    @property
-    def fermi_weight(self) -> int:
-        """
-        Maximum number of fermionic creation and annihilation operators multiplied together.
-        """
-        return 2
-
-    def norm_bound(self) -> float:
-        """
-        Upper bound on the spectral norm of the operator.
-        """
-        return abs(self.coeff*0.5)
-    
-    def set_mod(self, mod:int = 0):
-        if self.s==2:
-            self.mod = 1
-            return
-        assert mod in [0,1]
-        self.mod = mod
-
-    def Mod2Num(self) -> NumberOp:
-        return NumberOp(self.i, self.s, self.coeff, self.mod)
-
+    def set_max_level(self,N):
+        self.max_level=N
+        return
 
 class ZeroOp(HamiltonianOp):
     """
@@ -823,6 +699,9 @@ class ZeroOp(HamiltonianOp):
     def set_mod(self, mod: int):
         return
 
+    def set_max_level(self,N):
+        return
+
     @property
     def fermi_weight(self) -> int:
         """
@@ -897,7 +776,7 @@ class BosonNumOp(HamiltonianOp):
         assert isinstance(other, HamiltonianOp)
         if isinstance(other, (BosonAddOp, BosonMinuOp, ProductOp, SumOp)):
             return True
-        if isinstance(other, (ZeroOp, HoppingOp, AntisymmHoppingOp, NumberOp, ModifiedNumOp)):
+        if isinstance(other, (ZeroOp, HoppingOp, AntisymmHoppingOp, NumberOp)):
             return False
         assert isinstance(other, BosonNumOp)
         return (self.i,self.coeff)<(other.i,other.coeff)
@@ -962,6 +841,10 @@ class BosonNumOp(HamiltonianOp):
     def set_mod(self, mod: int):
         return
     
+    def set_max_level(self,N):
+        self.max_level=N
+        return
+    
 class BosonAddOp(HamiltonianOp):
     def __init__(self, i: Sequence[int], coeff:float, max_level:int) -> None:
         self.i = tuple(i)
@@ -1005,7 +888,7 @@ class BosonAddOp(HamiltonianOp):
         Represent the operator as a string.
         """
         c = "" if self.coeff == 1 else f"({self.coeff}) "
-        return c+f"Bn_{self.i}"
+        return c+f"Ba_{self.i}"
     
     def __eq__(self, other) -> bool:
         """
@@ -1023,7 +906,7 @@ class BosonAddOp(HamiltonianOp):
         assert isinstance(other, HamiltonianOp)
         if isinstance(other, (BosonMinuOp ,ProductOp, SumOp)):
             return True
-        if isinstance(other, (ZeroOp, HoppingOp, AntisymmHoppingOp, NumberOp, ModifiedNumOp, BosonNumOp)):
+        if isinstance(other, (ZeroOp, HoppingOp, AntisymmHoppingOp, NumberOp, BosonNumOp)):
             return False
         assert isinstance(other, BosonAddOp)
         return (self.i,self.coeff)<(other.i,other.coeff)
@@ -1057,7 +940,7 @@ class BosonAddOp(HamiltonianOp):
         """
         Translate by `shift` and return the translated operator.
         """
-        return BosonNumOp(tuple(x+s for x, s in zip(self.i, shift)), self.coeff, self.max_level)
+        return BosonAddOp(tuple(x+s for x, s in zip(self.i, shift)), self.coeff, self.max_level)
     
     def normalize(self) -> tuple:
         """
@@ -1087,6 +970,10 @@ class BosonAddOp(HamiltonianOp):
         return (self.max_level-1)*abs(self.coeff)
     
     def set_mod(self, mod: int):
+        return
+    
+    def set_max_level(self, N):
+        self.max_level=N
         return
 
 class BosonMinuOp(HamiltonianOp):
@@ -1172,7 +1059,7 @@ class BosonMinuOp(HamiltonianOp):
         return FieldOp_FB([
             ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.BOSON_CREATE,self.i,2)],self.coeff),
             ProductFieldOp_FB([ElementaryFieldOp_FB(FieldOpType_FB.BOSON_ANNIHIL,self.i,2)],-self.coeff)
-        ])
+        ],self.max_level)
     
     def support(self) -> list[tuple]:
         """
@@ -1215,17 +1102,20 @@ class BosonMinuOp(HamiltonianOp):
     
     def set_mod(self, mod: int):
         return
+    
+    def set_max_level(self,N):
+        self.max_level = N
+        return 
 
 class ProductOp(HamiltonianOp):
     """
     Product of Hamiltonian operators.
     """
-    def __init__(self, ops: Sequence[HamiltonianOp], coeff: float):
+    def __init__(self, ops: Sequence[HamiltonianOp], coeff: float, mod=0, max_level=0):
         self.ops = []
         self.coeff = coeff
-        self.mod = 0
-        self.with_modified_num = False
-        self.max_level = 0
+        self.mod = mod
+        self.max_level = max_level
         for op in ops:
             if op.is_zero():
                 self.ops = [ZeroOp()]
@@ -1240,13 +1130,12 @@ class ProductOp(HamiltonianOp):
                 opn, c = op.normalize()
                 self.ops.append(opn)
                 self.coeff *= c
-                if isinstance(op, ModifiedNumOp):
-                    self.with_modified_num = True
                 if opn.mod ==1:
                     self.mod = 1
         self.mod_sync()
         if self.mod==1:
             self.max_level_sync()
+        self.remove_high_order_numop()
 
     def __neg__(self):
         """
@@ -1418,31 +1307,7 @@ class ProductOp(HamiltonianOp):
         """
         Whether the operator is a product of number operators, or modified number operators.
         """
-        return bool(self.ops) and all(isinstance(op, (NumberOp, ModifiedNumOp)) for op in self.ops)
-    
-    def check_mod_num(self) -> bool:
-        for op in self.ops:
-            if isinstance(op,ModifiedNumOp):
-                self.with_modified_num=True
-                return True
-        return False
-
-    def selfie_simplify(self) -> HamiltonianOp:
-        "To simplify the ProductOp if at least one ModifiedNumOp in it"
-        if not self.with_modified_num:
-            return self
-        """
-        if len(self.ops)==1:
-            return self.ops[0]
-            """
-        
-        for i in range(len(self.ops)):
-            if isinstance(self.ops[i], ModifiedNumOp):
-                oplist = self.ops[0:i]
-                if i<len(self.ops)-1:
-                    oplist+=self.ops[i+1:]
-                return SumOp([ProductOp(oplist+[self.ops[i].Mod2Num()], coeff=self.coeff).selfie_simplify(),
-                              ProductOp(oplist, coeff=-.5*self.coeff).selfie_simplify()])
+        return bool(self.ops) and all(isinstance(op, NumberOp) for op in self.ops)
     
     def remove_high_order_numop(self):
         temp_list = []
@@ -1464,7 +1329,7 @@ class ProductOp(HamiltonianOp):
         self.max_level = N
         for op in self.ops:
             if not isinstance(op,ZeroOp):
-                op.max_level = self.max_level
+                op.set_max_level(self.max_level)
 
 
 class SumOp(HamiltonianOp):
@@ -1633,7 +1498,7 @@ class SumOp(HamiltonianOp):
             # compute exact norm
             cmt = self.as_field_operator().as_compact_matrix()
             if self.mod == 1:
-                return  compute_norm(cmt,ord='fro')
+                return  compute_norm(cmt,ord=2)
             return _spectral_norm_conserved_particles(nmodes, cmt)
 
         if self.is_quadratic_sum():
@@ -1750,7 +1615,7 @@ class SumOp(HamiltonianOp):
         self.max_level = N
         for op in self.terms:
             if not isinstance(op,ZeroOp):
-                op.max_level = self.max_level
+                op.set_max_level(self.max_level)
     
 
 def _spectral_norm_conserved_particles(nmodes: int, op):
