@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from fh_comm.lattice import SubLattice
-from fh_comm.hamiltonian_ops import HamiltonianOp, HoppingOp, AntisymmHoppingOp, NumberOp, ModifiedNumOp, ZeroOp, BosonNumOp, BosonAddOp, BosonMinuOp, ProductOp, SumOp
+from fh_comm.hamiltonian_ops import HamiltonianOp, HoppingOp, AntisymmHoppingOp, NumberOp, ZeroOp, BosonNumOp, BosonAddOp, BosonMinuOp, ProductOp, SumOp
 
 
 def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
@@ -27,8 +27,6 @@ def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
             return _commutator_mixed_symm_hopping(a, b)
         if isinstance(b, NumberOp):
             return _commutator_hopping_number(a, b)
-        if isinstance(b, ModifiedNumOp):
-            return _commutator_hopping_number(a, b.Mod2Num())
         if isinstance(b, (BosonNumOp,BosonAddOp,BosonMinuOp)):
             return ZeroOp()
         
@@ -40,8 +38,6 @@ def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
             return _commutator_antisymm_hopping(a, b)
         if isinstance(b, NumberOp):
             return _commutator_antisymm_hopping_number(a, b)
-        if isinstance(b, ModifiedNumOp):
-            return _commutator_antisymm_hopping_number(a, b.Mod2Num())
         if isinstance(b, (BosonNumOp,BosonAddOp,BosonMinuOp)):
             return ZeroOp()
 
@@ -52,25 +48,11 @@ def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
         if isinstance(b, AntisymmHoppingOp):
             # pylint: disable=arguments-out-of-order
             return -_commutator_antisymm_hopping_number(b, a)
-        if isinstance(b, (NumberOp, ModifiedNumOp)):
-            return ZeroOp()
-        if isinstance(b, (BosonNumOp,BosonAddOp,BosonMinuOp)):
-            return ZeroOp()
-
-    elif isinstance(a, ModifiedNumOp):
-        if isinstance(b, HoppingOp):
-            # pylint: disable=arguments-out-of-order
-            return -_commutator_hopping_number(b, a.Mod2Num())
-        if isinstance(b, AntisymmHoppingOp):
-            # pylint: disable=arguments-out-of-order
-            return -_commutator_antisymm_hopping_number(b, a.Mod2Num())
-        if isinstance(b, (NumberOp, ModifiedNumOp)):
-            return ZeroOp()
-        if isinstance(b, (BosonNumOp,BosonAddOp,BosonMinuOp)):
+        if isinstance(b, (NumberOp,BosonNumOp,BosonAddOp,BosonMinuOp)):
             return ZeroOp()
     
     elif isinstance(a, BosonNumOp):
-        if isinstance(b, (HoppingOp,AntisymmHoppingOp,NumberOp,ModifiedNumOp)):
+        if isinstance(b, (HoppingOp,AntisymmHoppingOp,NumberOp)):
             return ZeroOp()
         if isinstance(b, BosonNumOp):
             return ZeroOp()
@@ -80,7 +62,7 @@ def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
             return _commutator_boson_num_minu(a,b)
     
     elif isinstance(a, BosonAddOp):
-        if isinstance(b,(HoppingOp,AntisymmHoppingOp,NumberOp,ModifiedNumOp)):
+        if isinstance(b,(HoppingOp,AntisymmHoppingOp,NumberOp)):
             return ZeroOp()
         if isinstance(b, BosonNumOp):
             return -_commutator_boson_num_add(b,a)
@@ -90,7 +72,7 @@ def commutator(a: HamiltonianOp, b: HamiltonianOp) -> HamiltonianOp:
             return _commutator_boson_add_minu(a,b)
     
     elif isinstance(a, BosonMinuOp):
-        if isinstance(b,(HoppingOp,AntisymmHoppingOp,NumberOp,ModifiedNumOp)):
+        if isinstance(b,(HoppingOp,AntisymmHoppingOp,NumberOp)):
             return ZeroOp()
         if isinstance(b,BosonNumOp):
             return -_commutator_boson_num_minu(b,a)
