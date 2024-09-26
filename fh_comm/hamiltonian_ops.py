@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from warnings import warn
 import numpy as np
 from fh_comm.field_ops import FieldOpType, ElementaryFieldOp, ProductFieldOp, FieldOp, FieldOpType_FB, ElementaryFieldOp_FB, ProductFieldOp_FB, FieldOp_FB
-from scipy.sparse.linalg import norm as compute_norm 
+#from scipy.sparse.linalg import norm as compute_norm 
 
 @total_ordering
 class HamiltonianOp(abc.ABC):
@@ -1289,6 +1289,8 @@ class ProductOp(HamiltonianOp):
         nmodes = len(self.support())
         if nmodes <= HamiltonianOp.max_nmodes_exact_norm:
             cmt = self.as_field_operator().as_compact_matrix()
+            if self.mod>0:
+                return np.linalg.norm(cmt.toarray(),ord=2)
             return _spectral_norm_conserved_particles(nmodes, cmt)
         # resort to upper bound
         # use sub-multiplicative property of the spectral norm
@@ -1498,7 +1500,8 @@ class SumOp(HamiltonianOp):
             # compute exact norm
             cmt = self.as_field_operator().as_compact_matrix()
             if self.mod == 1:
-                return  compute_norm(cmt,ord=2)
+                print('run the function')
+                return  np.linalg.norm(cmt.toarray(),ord=2)
             return _spectral_norm_conserved_particles(nmodes, cmt)
 
         if self.is_quadratic_sum():

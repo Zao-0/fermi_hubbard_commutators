@@ -24,10 +24,9 @@ class FieldOpType_FB(enum.Enum):
     FERMI_CREATE  = 0   # fermionic creation operator
     FERMI_ANNIHIL = 1   # fermionic annihilation operator
     FERMI_NUMBER  = 2   # fermionic/bosonic number operator
-    FERMI_MODNUM = 3    # fermionic/bosonic number operator (modified) i.e. n_i-1/2
-    BOSON_CREATE = 4    # bosonic creation operator
-    BOSON_ANNIHIL = 5   # bosonic annihilation operator
-    BOSON_NUMBER = 6
+    BOSON_CREATE = 3    # bosonic creation operator
+    BOSON_ANNIHIL = 4   # bosonic annihilation operator
+    BOSON_NUMBER = 5
 
 class ElementaryFieldOp:
     """
@@ -52,8 +51,6 @@ class ElementaryFieldOp:
             return f"a_{{{self.i}, {nt}}}"
         if self.otype == FieldOpType.FERMI_NUMBER:
             return f"n_{{{self.i}, {nt}}}"
-        if self.otype == FieldOpType.FERMI_MODNUM:
-            return f"mn_{{{self.i}, {nt}}}"
         assert False
 
 class ElementaryFieldOp_FB(ElementaryFieldOp):
@@ -75,8 +72,6 @@ class ElementaryFieldOp_FB(ElementaryFieldOp):
             return f"a_{{{self.i}, {nt}}}"
         if self.otype == FieldOpType_FB.FERMI_NUMBER:
             return f"n_{{{self.i}, {nt}}}"
-        if self.otype == FieldOpType_FB.FERMI_MODNUM:
-            return f"mn_{{{self.i}, {nt}}}"
         if self.otype == FieldOpType_FB.BOSON_CREATE:
             return f"bc_{{{self.i}, {nt}}}"
         if self.otype == FieldOpType_FB.BOSON_ANNIHIL:
@@ -188,7 +183,7 @@ class FieldOp:
         if not self.terms:
             # fast-return zero matrix if terms are empty
             return sparse.csr_matrix((2**L, 2**L))
-        clist, alist, nlist, mlist = construct_fermionic_operators(L)
+        clist, alist, nlist = construct_fermionic_operators(L)
         mat = 0
         if translatt is None:
             tps = [len(latt_shape) * (0,)]
@@ -206,8 +201,6 @@ class FieldOp:
                         fstring = fstring @ alist[j]
                     elif op.otype == FieldOpType.FERMI_NUMBER:
                         fstring = fstring @ nlist[j]
-                    elif op.otype == FieldOpType.FERMI_MODNUM:
-                        fstring = fstring @ mlist[j]
                     else:
                         raise RuntimeError(f"unexpected fermionic operator type {op.otype}")
                 mat += float(term.coeff) * fstring
@@ -234,7 +227,7 @@ class FieldOp:
         # active sites (including spin)
         supp = self.support()
         L = len(supp)
-        clist, alist, nlist, mlist = construct_fermionic_operators(L)
+        clist, alist, nlist = construct_fermionic_operators(L)
         # construct matrix representation
         mat = 0
         for term in self.terms:
@@ -248,8 +241,6 @@ class FieldOp:
                     fstring = fstring @ alist[j]
                 elif op.otype == FieldOpType.FERMI_NUMBER:
                     fstring = fstring @ nlist[j]
-                elif op.otype == FieldOpType.FERMI_MODNUM:
-                    fstring = fstring @ mlist[j]
                 else:
                     raise RuntimeError(f"unexpected fermionic operator type {op.otype}")
             mat += float(term.coeff) * fstring
@@ -347,7 +338,7 @@ class FieldOp_FB(FieldOp):
         if not self.terms:
             # fast-return zero matrix if terms are empty
             return sparse.csr_matrix((2**(2*latt_shape)*self.N**latt_shape, 2**(2*latt_shape)*self.N**latt_shape))
-        clist, alist, nlist, mlist, bclist, balist, bnlist = construct_Holstein_operators(L,self.N)
+        clist, alist, nlist, bclist, balist, bnlist = construct_Holstein_operators(L,self.N)
         mat = 0
         if translatt is None:
             tps = [len(latt_shape) * (0,)]
@@ -365,8 +356,6 @@ class FieldOp_FB(FieldOp):
                         fstring = fstring @ alist[j]
                     elif op.otype == FieldOpType_FB.FERMI_NUMBER:
                         fstring = fstring @ nlist[j]
-                    elif op.otype == FieldOpType_FB.FERMI_MODNUM:
-                        fstring = fstring @ mlist[j]
                     elif op.otype == FieldOpType_FB.BOSON_CREATE:
                         fstring = fstring @ bclist[j]
                     elif op.otype == FieldOpType_FB.BOSON_ANNIHIL:
@@ -407,7 +396,7 @@ class FieldOp_FB(FieldOp):
         L = len(supp)
         assert L == len(modes_list)
         modes_list = tuple(modes_list)
-        clist, alist, nlist, mlist, bclist, balist, bnlist = construct_Holstein_operators_alt(modes_list, self.N)
+        clist, alist, nlist, bclist, balist, bnlist = construct_Holstein_operators_alt(modes_list, self.N)
         # construct matrix representation
         mat = 0
         numf, numb = get_particles(modes_list)
@@ -422,8 +411,6 @@ class FieldOp_FB(FieldOp):
                     fstring = fstring @ alist[j]
                 elif op.otype == FieldOpType_FB.FERMI_NUMBER:
                     fstring = fstring @ nlist[j]
-                elif op.otype == FieldOpType_FB.FERMI_MODNUM:
-                    fstring = fstring @ mlist[j]
                 elif op.otype == FieldOpType_FB.BOSON_CREATE:
                     fstring = fstring @ bclist[j]
                 elif op.otype == FieldOpType_FB.BOSON_ANNIHIL:
@@ -520,26 +507,18 @@ def  construct_fermionic_operators(nmodes: int):
     Z = sparse.csr_matrix([[ 1.,  0.], [ 0., -1.]])
     U = sparse.csr_matrix([[ 0.,  0.], [ 1.,  0.]])
     clist = []
-    mlist = [] # indeed 1/2 * -Z
     for i in range(nmodes):
         c = sparse.identity(1)
-        m = sparse.identity(1)
         for j in range(nmodes):
             if j < i:
                 c = sparse.kron(c, I)
-                m = sparse.kron(m, I)
             elif j == i:
                 c = sparse.kron(c, U)
-                m = sparse.kron(m, Z)*(-.5)
             else:
                 c = sparse.kron(c, Z)
-                m = sparse.kron(m, I)
         c = sparse.csr_matrix(c)
-        m = sparse.csr_matrix(m)
         c.eliminate_zeros()
-        m.eliminate_zeros()
         clist.append(c)
-        mlist.append(m)
     # corresponding annihilation operators
     alist = [sparse.csr_matrix(c.conj().T) for c in clist]
     # corresponding number operators
@@ -548,7 +527,7 @@ def  construct_fermionic_operators(nmodes: int):
         f = 1 << (nmodes - i - 1)
         data = [1. if (n & f == f) else 0. for n in range(2**nmodes)]
         nlist.append(sparse.dia_matrix((data, 0), 2*(2**nmodes,)))
-    return clist, alist, nlist, mlist
+    return clist, alist, nlist
 
 @cache
 def  construct_Holstein_operators(nmodes: int, boson_level:int):
@@ -563,47 +542,41 @@ def  construct_Holstein_operators(nmodes: int, boson_level:int):
     U = sparse.csr_matrix([[ 0.,  0.], [ 1.,  0.]])
     BOSON_I = sparse.identity(boson_level)
     CREATOR = np.zeros((boson_level,boson_level))
+    BOSON_NUM = np.zeros((boson_level,boson_level))
     for i in range(1,boson_level):
         CREATOR[i][i-1] = np.sqrt(i)
+        BOSON_NUM[i][i] = i
     CREATOR = sparse.csr_matrix(CREATOR)
+    BOSON_NUM = sparse.csr_matrix(BOSON_NUM)
     clist = []
-    mlist = [] # indeed 1/2 * -Z
     bclist = []
+    bnlist = [1]
     for i in range(nmodes):
         c = sparse.identity(1)
-        m = sparse.identity(1)
         bc = sparse.identity(1)
         for j in range(nmodes):
             if j < i:
                 if j%3 ==2:
                     c = sparse.kron(c, BOSON_I)
-                    m = sparse.kron(m, BOSON_I)
                     bc = sparse.kron(bc, BOSON_I)
                 else:
                     c = sparse.kron(c, I)
-                    m = sparse.kron(m, I)
                     bc = sparse.kron(bc, I)
             elif j == i:
                 c = sparse.kron(c, U)
-                m = sparse.kron(m, Z)*(-.5)
                 bc = sparse.kron(bc, CREATOR)
             else:
                 if j%3==2:
                     c = sparse.kron(c, I)
-                    m = sparse.kron(m, BOSON_I)
                     bc = sparse.kron(bc, BOSON_I)
                 else:
                     c = sparse.kron(c, Z)
-                    m = sparse.kron(m, I)
                     bc = sparse.kron(bc, I)
         c = sparse.csr_matrix(c)
-        m = sparse.csr_matrix(m)
         bc = sparse.csr_matrix(bc)
         c.eliminate_zeros()
-        m.eliminate_zeros()
         bc.eliminate_zeros()
         clist.append(c)
-        mlist.append(m)
         bclist.append(bc)
     # corresponding annihilation operators
     alist = [sparse.csr_matrix(c.conj().T) for c in clist]
@@ -614,7 +587,7 @@ def  construct_Holstein_operators(nmodes: int, boson_level:int):
         f = 1 << (nmodes - i - 1)
         data = [1. if (n & f == f) else 0. for n in range(2**nmodes)]
         nlist.append(sparse.dia_matrix((data, 0), 2*(2**nmodes,)))
-    return clist, alist, nlist, mlist, bclist, balist
+    return clist, alist, nlist, bclist, balist, bnlist
 
 @cache
 def construct_Holstein_operators_alt(nmodes_list, boson_level:int):
@@ -629,16 +602,15 @@ def construct_Holstein_operators_alt(nmodes_list, boson_level:int):
         CREATOR[i][i-1] = np.sqrt(i)
         BOSON_NUM[i][i] = i
     CREATOR = sparse.csr_matrix(CREATOR)
+    BOSON_NUM = sparse.csr_matrix(BOSON_NUM)
     BOSON_I = sparse.identity(boson_level)
     clist = []
-    mlist = [] # indeed 1/2 * -Z
     bclist = []
     nlist = []
     bnlist = []
     nmodes = len(nmodes_list)
     for i in range(nmodes):
         c = sparse.identity(1)
-        m = sparse.identity(1)
         bc = sparse.identity(1)
         n = sparse.identity(1)
         bn = sparse.identity(1)
@@ -657,38 +629,31 @@ def construct_Holstein_operators_alt(nmodes_list, boson_level:int):
             for j in range(nmodes):
                 if nmodes_list[j]=='b':
                     c = sparse.kron(c,BOSON_I)
-                    m = sparse.kron(m,BOSON_I)
                     n = sparse.kron(n,BOSON_I)
                 elif j<i:
                     c = sparse.kron(c,I)
-                    m = sparse.kron(m,I)
                     n = sparse.kron(n,I)
                 elif j>i:
                     c = sparse.kron(c,Z)
-                    m = sparse.kron(m,I)
                     n = sparse.kron(n,I)
                 else:
                     c = sparse.kron(c,U)
-                    m = sparse.kron(m, Z)*(-.5)
                     n = sparse.kron(n,NUM)
         c = sparse.csr_matrix(c)
-        m = sparse.csr_matrix(m)
         bc = sparse.csr_matrix(bc)
         n = sparse.csr_matrix(n)
         bn = sparse.csr_matrix(bn)
         c.eliminate_zeros()
-        m.eliminate_zeros()
         n.eliminate_zeros()
         bc.eliminate_zeros()
         bn.eliminate_zeros()
         clist.append(c)
-        mlist.append(m)
         bclist.append(bc)
         nlist.append(n)
         bnlist.append(bn)
     alist = [sparse.csr_matrix(c.conj().T) for c in clist]
     balist = [sparse.csr_matrix(bc.conj().T) for bc in bclist]
-    return clist, alist, nlist, mlist, bclist, balist, bnlist
+    return clist, alist, nlist, bclist, balist, bnlist
 
 def get_particles(modes_list):
     nf = 0

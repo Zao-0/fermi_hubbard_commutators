@@ -2,7 +2,7 @@ from numbers import Rational
 from fractions import Fraction
 from warnings import warn
 import numpy as np
-from fh_comm.hamiltonian_ops import HamiltonianOp, ZeroOp, ProductOp, SumOp, NumberOp, ModifiedNumOp
+from fh_comm.hamiltonian_ops import HamiltonianOp, ZeroOp, ProductOp, SumOp, NumberOp
 from fh_comm.commutator import commutator
 from fh_comm.lattice import SubLattice
 
@@ -21,9 +21,6 @@ def _expand_simplify(h: HamiltonianOp) -> HamiltonianOp:
     if isinstance(h, ProductOp):
         # expand a product of sums into a sum of products
         # first occurrence of a SumOp
-
-        if h.with_modified_num:
-            return(_expand_simplify(h.selfie_simplify()))
 
         contains_sum = False
         # pylint: disable=consider-using-enumerate
