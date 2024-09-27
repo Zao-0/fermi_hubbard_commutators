@@ -6,6 +6,7 @@ from numbers import Rational
 from collections.abc import Sequence
 from warnings import warn
 import numpy as np
+import scipy
 from fh_comm.field_ops import FieldOpType, ElementaryFieldOp, ProductFieldOp, FieldOp, FieldOpType_FB, ElementaryFieldOp_FB, ProductFieldOp_FB, FieldOp_FB
 #from scipy.sparse.linalg import norm as compute_norm 
 
@@ -1500,8 +1501,7 @@ class SumOp(HamiltonianOp):
             # compute exact norm
             cmt = self.as_field_operator().as_compact_matrix()
             if self.mod == 1:
-                print('run the function')
-                return  np.linalg.norm(cmt.toarray(),ord=2)
+                return  scipy.sparse.linalg.norm(cmt,ord=2)
             return _spectral_norm_conserved_particles(nmodes, cmt)
 
         if self.is_quadratic_sum():
