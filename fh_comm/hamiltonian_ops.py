@@ -124,7 +124,7 @@ class HamiltonianOp(abc.ABC):
         """
     # maximum number of modes defining matrix dimension
     # for which the exact spectral norm can be computed
-    max_nmodes_exact_norm = 14
+    max_nmodes_exact_norm = 24
 
 
 class HoppingOp(HamiltonianOp):

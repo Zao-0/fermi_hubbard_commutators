@@ -503,19 +503,22 @@ def  construct_fermionic_operators(nmodes: int):
     annihilation operators for `nmodes` modes (or sites),
     based on Jordan-Wigner transformation.
     """
-    I = sparse.identity(2)
+    I = sparse.identity(2,format='csr')
     Z = sparse.csr_matrix([[ 1.,  0.], [ 0., -1.]])
     U = sparse.csr_matrix([[ 0.,  0.], [ 1.,  0.]])
     clist = []
     for i in range(nmodes):
-        c = sparse.identity(1)
+        c = sparse.identity(1,format='csr')
         for j in range(nmodes):
             if j < i:
                 c = sparse.kron(c, I)
+                c.eliminate_zeros()
             elif j == i:
                 c = sparse.kron(c, U)
+                c.eliminate_zeros()
             else:
                 c = sparse.kron(c, Z)
+                c.eliminate_zeros()
         c = sparse.csr_matrix(c)
         c.eliminate_zeros()
         clist.append(c)

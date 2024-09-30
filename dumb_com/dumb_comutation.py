@@ -1,15 +1,15 @@
 import numpy as np
 from scipy import sparse
 Id2 = sparse.csr_matrix(np.eye(2,dtype=np.float32))
-Id4 = sparse.csr_matrix(np.eye(4,dtype=np.float32))
+Id4 = sparse.csr_matrix(np.eye(3,dtype=np.float32))
 
 Z = sparse.csr_matrix(np.array([[1,0],[0,-1]],dtype = np.float32))
 
 Fc = sparse.csr_matrix(np.array([[0,0],[1,0]],dtype= np.float32))
 Fa = sparse.csr_matrix(np.array([[0,1],[0,0]],dtype= np.float32))
 
-Ba = sparse.csr_matrix(np.diag([1.,np.sqrt(2),np.sqrt(3)],k=1).astype(np.float32))
-Bc = sparse.csr_matrix(np.diag([1.,np.sqrt(2),np.sqrt(3)],k=-1).astype(np.float32))
+Ba = sparse.csr_matrix(np.diag([1.,np.sqrt(2)],k=1).astype(np.float32))
+Bc = sparse.csr_matrix(np.diag([1.,np.sqrt(2)],k=-1).astype(np.float32))
 
 n = sparse.csr_matrix(np.diag([0.,1.]).astype(np.float32))
 
@@ -32,7 +32,7 @@ def get_op_from_list(opstr):
     return r
 
 def construct_op(op_list,N):
-    result = sparse.csr_matrix(np.eye(16**N))
+    result = sparse.csr_matrix(np.eye(12**N))
     vaccancy_site = ['Id2','Id2','Id4']
     innenu_site = ['Z','Id2','Id4']
     innend_site = ['Id2','Z','Id4']
