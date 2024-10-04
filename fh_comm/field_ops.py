@@ -622,26 +622,40 @@ def construct_Holstein_operators_alt(nmodes_list, boson_level:int):
                 if j==i:
                     bc = sparse.kron(bc, CREATOR)
                     bn = sparse.kron(bn,BOSON_NUM)
+                    bc.eliminate_zeros()
+                    bn.eliminate_zeros()
                 elif nmodes_list[j]=='b':
                     bc = sparse.kron(bc, BOSON_I)
                     bn = sparse.kron(bn, BOSON_I)
+                    bc.eliminate_zeros()
+                    bn.eliminate_zeros()
                 else:
                     bc = sparse.kron(bc,I)
                     bn = sparse.kron(bn,I)
+                    bc.eliminate_zeros()
+                    bn.eliminate_zeros()
         else:
             for j in range(nmodes):
                 if nmodes_list[j]=='b':
                     c = sparse.kron(c,BOSON_I)
                     n = sparse.kron(n,BOSON_I)
+                    c.eliminate_zeros()
+                    n.eliminate_zeros()
                 elif j<i:
                     c = sparse.kron(c,I)
                     n = sparse.kron(n,I)
+                    c.eliminate_zeros()
+                    n.eliminate_zeros()
                 elif j>i:
                     c = sparse.kron(c,Z)
                     n = sparse.kron(n,I)
+                    c.eliminate_zeros()
+                    n.eliminate_zeros()
                 else:
                     c = sparse.kron(c,U)
                     n = sparse.kron(n,NUM)
+                    c.eliminate_zeros()
+                    n.eliminate_zeros()
         c = sparse.csr_matrix(c)
         bc = sparse.csr_matrix(bc)
         n = sparse.csr_matrix(n)

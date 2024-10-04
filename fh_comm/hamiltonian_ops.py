@@ -8,7 +8,8 @@ from warnings import warn
 import numpy as np
 import scipy
 from fh_comm.field_ops import FieldOpType, ElementaryFieldOp, ProductFieldOp, FieldOp, FieldOpType_FB, ElementaryFieldOp_FB, ProductFieldOp_FB, FieldOp_FB
-#from scipy.sparse.linalg import norm as compute_norm 
+from scipy.sparse.linalg import norm as compute_norm 
+import torch
 
 @total_ordering
 class HamiltonianOp(abc.ABC):
@@ -262,7 +263,7 @@ class HoppingOp(HamiltonianOp):
         """
         return 2
 
-    def norm_bound(self) -> float:
+    def norm_bound(self,method) -> float:
         """
         Upper bound on the spectral norm of the operator.
         """
@@ -426,7 +427,7 @@ class AntisymmHoppingOp(HamiltonianOp):
         """
         return 2
 
-    def norm_bound(self) -> float:
+    def norm_bound(self,method) -> float:
         """
         Upper bound on the spectral norm of the operator.
         """
@@ -587,7 +588,7 @@ class NumberOp(HamiltonianOp):
         """
         return 2
 
-    def norm_bound(self) -> float:
+    def norm_bound(self,method) -> float:
         """
         Upper bound on the spectral norm of the operator.
         """
@@ -710,7 +711,7 @@ class ZeroOp(HamiltonianOp):
         """
         return 0
 
-    def norm_bound(self) -> float:
+    def norm_bound(self,method) -> float:
         """
         Upper bound on the spectral norm of the operator.
         """
@@ -833,7 +834,7 @@ class BosonNumOp(HamiltonianOp):
         """
         return 99
     
-    def norm_bound(self) -> float:
+    def norm_bound(self,method) -> float:
         """
         Upper bound on the spectral norm of the operator.
         """
@@ -964,11 +965,11 @@ class BosonAddOp(HamiltonianOp):
         """
         return 99
     
-    def norm_bound(self) -> float:
+    def norm_bound(self,method) -> float:
         """
         Upper bound on the spectral norm of the operator.
         """
-        return (self.max_level-1)*abs(self.coeff)
+        return (compute_norm(self.as_field_operator().as_compact_matrix(),ord=2))*abs(self.coeff)
     
     def set_mod(self, mod: int):
         return
@@ -1099,7 +1100,7 @@ class BosonMinuOp(HamiltonianOp):
         """
         Upper bound on the spectral norm of the operator.
         """
-        return (self.max_level-1)*abs(self.coeff)
+        return (compute_norm(self.as_field_operator().as_compact_matrix(),ord=2))*abs(self.coeff)
     
     def set_mod(self, mod: int):
         return
@@ -1280,18 +1281,21 @@ class ProductOp(HamiltonianOp):
         """
         return sum(op.fermi_weight for op in self.ops)
 
-    def norm_bound(self) -> float:
+    def norm_bound(self,method) -> float:
         """
         Upper bound on the spectral norm of the operator.
         """
         if not self.ops:
             # logical identity operation
             return abs(self.coeff)
+        if method == 'torch':
+            cmt = self.as_field_operator().as_compact_matrix()
+            return norm_torch(cmt, 1000)
         nmodes = len(self.support())
         if nmodes <= HamiltonianOp.max_nmodes_exact_norm:
             cmt = self.as_field_operator().as_compact_matrix()
             if self.mod>0:
-                return np.linalg.norm(cmt.toarray(),ord=2)
+                return compute_norm(cmt,ord=2)
             return _spectral_norm_conserved_particles(nmodes, cmt)
         # resort to upper bound
         # use sub-multiplicative property of the spectral norm
@@ -1492,15 +1496,20 @@ class SumOp(HamiltonianOp):
         """
         return max((term.fermi_weight for term in self.terms), default=0)
 
-    def norm_bound(self) -> float:
+    def norm_bound(self, method = 'direct') -> float:
         """
         Upper bound on the spectral norm of the operator.
         """
         nmodes = len(self.support())
+        if method == 'torch':
+            cmt = self.as_field_operator().as_compact_matrix()
+            return norm_torch(cmt, 1000)
         if nmodes <= HamiltonianOp.max_nmodes_exact_norm:
             # compute exact norm
             cmt = self.as_field_operator().as_compact_matrix()
             if self.mod == 1:
+                return  scipy.sparse.linalg.norm(cmt,ord=2)
+            elif self.mod == 0:
                 return  scipy.sparse.linalg.norm(cmt,ord=2)
             return _spectral_norm_conserved_particles(nmodes, cmt)
 
@@ -1663,3 +1672,26 @@ def _connected_components(adj):
             _find_component(adj, visited, i,  comp)
             components.append(comp)
     return components
+
+def scipy2torch(mat):
+    mat = mat.tocoo()
+    row = torch.tensor(mat.row, dtype=torch.long)
+    col = torch.tensor(mat.col, dtype=torch.long)
+    values = torch.tensor(mat.data, dtype=torch.float32)
+    indices = torch.stack([row, col])
+    shape = mat.shape
+    return torch.sparse_coo_tensor(indices,values,shape,dtype = torch.float32)
+
+def norm_torch(mat, num_ite = 1000):
+    device = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
+    mat = scipy2torch(mat)
+    mat = mat.to(device)
+    b_k = torch.rand(mat.size(1), device=device)
+    b_k = b_k / torch.norm(b_k, p=2)
+    for _ in range(num_ite):
+        b_k1 = torch.sparse.mm(mat, b_k.unsqueeze(1)).squeeze(1)
+        b_k1 = torch.sparse.mm(mat.t(), b_k1.unsqueeze(1)).squeeze(1)
+        b_k1_norm = torch.norm(b_k1, p=2)
+        b_k = b_k1 / b_k1_norm
+    l2_norm = torch.sqrt(b_k1_norm).item()
+    return l2_norm

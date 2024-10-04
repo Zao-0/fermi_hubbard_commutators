@@ -34,10 +34,4 @@ def construct_op(op_list):
             result = np.kron(result,I4)
     return result
 
-op1 = construct_op(['fn','I2','ba','I2','I2','I4'])
-op2 = construct_op(['I2','fn','ba','I2','I2','I4'])
-op3 = construct_op(['I2','I2','I4','fn','I2','ba'])
-op4 = construct_op(['I2','I2','I4','I2','fn','ba'])
-result1 = op1+op2+op3+op4
-print(np.linalg.norm(result1,ord='fro'))
-
+print(np.linalg.norm(ba,ord=2))
