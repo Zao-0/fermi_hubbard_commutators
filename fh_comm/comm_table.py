@@ -37,17 +37,3 @@ def _nested_commutators(hlist: Sequence[HamiltonianOp], operators, translatt: Su
         simplify(commutator_translation(h, operators, translatt)),
         translatt))
             for h in hlist]
-
-def nested_commutators(hlist: Sequence[HamiltonianOp], operators, translatt: SubLattice):
-    """
-    Replace the innermost level of `operators` with a list of commutators
-    between the entries of `hlist` and the current operator.
-    """
-    if isinstance(operators, list):
-        return [_nested_commutators(hlist, op, translatt) for op in operators]
-    if translatt is None:
-        return [simplify(commutator(h, operators)) for h in hlist]
-    return [simplify(translate_origin(
-        simplify(commutator_translation(h, operators, translatt)),
-        translatt))
-            for h in hlist]

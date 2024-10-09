@@ -1281,7 +1281,7 @@ class ProductOp(HamiltonianOp):
         """
         return sum(op.fermi_weight for op in self.ops)
 
-    def norm_bound(self,method) -> float:
+    def norm_bound(self,method='direct') -> float:
         """
         Upper bound on the spectral norm of the operator.
         """
@@ -1292,7 +1292,7 @@ class ProductOp(HamiltonianOp):
             cmt = self.as_field_operator().as_compact_matrix()
             return norm_torch(cmt, 1000)
         nmodes = len(self.support())
-        if nmodes <= HamiltonianOp.max_nmodes_exact_norm:
+        if nmodes <= HamiltonianOp.max_nmodes_exact_norm and method=='direct':
             cmt = self.as_field_operator().as_compact_matrix()
             if self.mod>0:
                 return compute_norm(cmt,ord=2)
@@ -1504,12 +1504,10 @@ class SumOp(HamiltonianOp):
         if method == 'torch':
             cmt = self.as_field_operator().as_compact_matrix()
             return norm_torch(cmt, 1000)
-        if nmodes <= HamiltonianOp.max_nmodes_exact_norm:
+        if nmodes <= HamiltonianOp.max_nmodes_exact_norm and method=='direct':
             # compute exact norm
             cmt = self.as_field_operator().as_compact_matrix()
             if self.mod == 1:
-                return  scipy.sparse.linalg.norm(cmt,ord=2)
-            elif self.mod == 0:
                 return  scipy.sparse.linalg.norm(cmt,ord=2)
             return _spectral_norm_conserved_particles(nmodes, cmt)
 
