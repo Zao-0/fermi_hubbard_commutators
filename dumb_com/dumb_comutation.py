@@ -22,7 +22,8 @@ operation_dict = {'Id2':Id2,
                   'Bc':Bc,
                   'ZFc':Z@Fc,
                   'ZFa':Z@Fa,
-                  'n':n}
+                  'n':n,
+                  'Fn':Fc@Fa}
 
 
 def get_op_from_list(opstr):
@@ -92,5 +93,50 @@ def construct_op(op_list,N):
             l2 = vaccancy_site*op[1]+['Id2','Id2','Ba']+vaccancy_site*(N-op[1]-1)
             temp2 = get_op_from_list(l2)
             temp = temp1-temp2
+        result = result@temp
+    return result
+
+def construct_fermi_op(op_list,N):
+    result = sparse.csr_matrix(np.eye(4**N))
+    vaccancy_site = ['Id2','Id2']
+    innenu_site = ['Z','Z']
+    innend_site = ['Z','Z']
+    u_site0 = [['ZFc','Z'],['Fa','Id2']]
+    u_site1 = [['ZFa','Z'],['Fc','Id2']]
+    d_site0 = [['Id2','Fc'],['Z','ZFa']]
+    d_site1 = [['Id2','Fa'],['Z','ZFc']]
+
+    for op in op_list:
+        temp = 0
+        if op[0] == 'hu':
+            l1 = vaccancy_site*op[1]+u_site0[0]+innenu_site*(op[2]-op[1]-1)+u_site0[1]+vaccancy_site*(N-1-op[2])
+            temp1 = get_op_from_list(l1)
+            l2 = vaccancy_site*op[1]+u_site1[0]+innenu_site*(op[2]-op[1]-1)+u_site1[1]+vaccancy_site*(N-1-op[2])
+            temp2 = get_op_from_list(l2)
+            temp = temp1+temp2
+        elif op[0] == 'gu':
+            l1 = vaccancy_site*op[1]+u_site0[0]+innenu_site*(op[2]-op[1]-1)+u_site0[1]+vaccancy_site*(N-1-op[2])
+            temp1 = get_op_from_list(l1)
+            l2 = vaccancy_site*op[1]+u_site1[0]+innenu_site*(op[2]-op[1]-1)+u_site1[1]+vaccancy_site*(N-1-op[2])
+            temp2 = get_op_from_list(l2)
+            temp = temp1-temp2
+        elif op[0] == 'hd':
+            l1 = vaccancy_site*op[1]+d_site0[0]+innend_site*(op[2]-op[1]-1)+d_site0[1]+vaccancy_site*(N-1-op[2])
+            temp1 = get_op_from_list(l1)
+            l2 = vaccancy_site*op[1]+d_site1[0]+innend_site*(op[2]-op[1]-1)+d_site1[1]+vaccancy_site*(N-1-op[2])
+            temp2 = get_op_from_list(l2)
+            temp = temp1-temp2
+        elif op[0] == 'gd':
+            l1 = vaccancy_site*op[1]+d_site0[0]+innend_site*(op[2]-op[1]-1)+d_site0[1]+vaccancy_site*(N-1-op[2])
+            temp1 = get_op_from_list(l1)
+            l2 = vaccancy_site*op[1]+d_site1[0]+innend_site*(op[2]-op[1]-1)+d_site1[1]+vaccancy_site*(N-1-op[2])
+            temp2 = get_op_from_list(l2)
+            temp = temp1-temp2
+        elif op[0] == 'nu':
+            l = vaccancy_site*op[1]+['n','Id2']+vaccancy_site*(N-op[1]-1)
+            temp = get_op_from_list(l)
+        elif op[0] == 'nd':
+            l = vaccancy_site*op[1]+['Id2','n']+vaccancy_site*(N-op[1]-1)
+            temp = get_op_from_list(l)
         result = result@temp
     return result

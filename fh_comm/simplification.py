@@ -76,10 +76,10 @@ def _factorize_numops(h: HamiltonianOp) -> HamiltonianOp:
     while changed:
         changed = False
         # pylint: disable=consider-using-enumerate
-        for i in range(len(h.terms)):
-            if not isinstance(h.terms[i], ProductOp):
+        for i,term in enumerate(h.terms):
+            if not isinstance(term, ProductOp):
                 continue
-            prod1 = h.terms[i]
+            prod1 = term
             if len(prod1.ops) <= 1:
                 continue
             # do not attempt to factor individual number operators,
